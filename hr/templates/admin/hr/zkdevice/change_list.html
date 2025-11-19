@@ -1,0 +1,219 @@
+{% extends "admin/change_list.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .device-actions {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .device-action-btn {
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        color: white;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    
+    .device-action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    
+    .device-action-btn:active {
+        transform: translateY(0);
+    }
+    
+    .device-action-btn .material-symbols-outlined {
+        font-size: 16px;
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+    
+    .device-action-btn .btn-text {
+        font-size: 11px;
+    }
+    
+    /* Unfold-style colors */
+    .btn-test { 
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+    .btn-users { 
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    }
+    .btn-today { 
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .btn-week { 
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+    .btn-month { 
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+    .btn-all { 
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    }
+    .btn-sync { 
+        background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    }
+    
+    .device-action-btn.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
+    }
+    
+    .device-action-btn.loading .material-symbols-outlined {
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .action-result {
+        margin-top: 6px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        display: none;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-5px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .action-result.success {
+        background: #d1fae5;
+        color: #065f46;
+        border-left: 3px solid #10b981;
+        display: block;
+    }
+    
+    .action-result.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border-left: 3px solid #ef4444;
+        display: block;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .device-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .device-action-btn {
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block result_list %}
+{{ block.super }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle device action buttons
+    document.querySelectorAll('.device-action-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            
+            if (this.classList.contains('loading')) return;
+            
+            const deviceId = this.dataset.deviceId;
+            const action = this.dataset.action;
+            const deviceRow = this.closest('tr');
+            const resultDiv = deviceRow.querySelector('.action-result');
+            
+            // Show loading state
+            this.classList.add('loading');
+            const originalHTML = this.innerHTML;
+            
+            if (resultDiv) {
+                resultDiv.style.display = 'none';
+                resultDiv.className = 'action-result';
+            }
+            
+            try {
+                const response = await fetch(`/admin/hr/zkdevice/${deviceId}/${action}/`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (resultDiv) {
+                    resultDiv.textContent = data.message;
+                    resultDiv.className = 'action-result ' + (data.success ? 'success' : 'error');
+                    resultDiv.style.display = 'block';
+                    
+                    // Hide after 8 seconds
+                    setTimeout(() => {
+                        resultDiv.style.display = 'none';
+                    }, 8000);
+                }
+                
+                // Update last synced if available
+                if (data.last_synced && action !== 'test') {
+                    const lastSyncedCell = deviceRow.querySelector('.field-last_synced');
+                    if (lastSyncedCell) {
+                        lastSyncedCell.textContent = data.last_synced;
+                    }
+                }
+                
+            } catch (error) {
+                if (resultDiv) {
+                    resultDiv.textContent = 'Error: ' + error.message;
+                    resultDiv.className = 'action-result error';
+                    resultDiv.style.display = 'block';
+                }
+            } finally {
+                // Remove loading state
+                this.classList.remove('loading');
+                this.innerHTML = originalHTML;
+            }
+        });
+    });
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,8 @@
+asgiref==3.10.0
+Django==5.2.8
+django-filter==25.2
+django-unfold==0.69.0
+djangorestframework==3.16.1
+future==1.0.0
+pyzk==0.9
+sqlparse==0.5.3

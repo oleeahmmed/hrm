@@ -1,0 +1,235 @@
+{% extends "unfold/layouts/base_simple.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div class="p-6 md:p-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-font-important-light dark:text-font-important-dark mb-2">
+            Attendance Log Report
+        </h1>
+        <p class="text-sm text-font-subtle-light dark:text-font-subtle-dark">View and analyze attendance log records</p>
+    </div>
+    
+    <!-- Filters Card -->
+    <div class="bg-base-50 dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default p-6 mb-6">
+        <form method="get" id="filterForm">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                <!-- Start Date -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-font-important-light dark:text-font-important-dark">
+                        Start Date
+                    </label>
+                    <input type="date" name="start_date" value="{{ start_date }}" 
+                           class="w-full px-3 py-2 border border-base-200 dark:border-base-700 bg-white dark:bg-base-900 rounded-default text-sm focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600">
+                </div>
+                
+                <!-- End Date -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-font-important-light dark:text-font-important-dark">
+                        End Date
+                    </label>
+                    <input type="date" name="end_date" value="{{ end_date }}" 
+                           class="w-full px-3 py-2 border border-base-200 dark:border-base-700 bg-white dark:bg-base-900 rounded-default text-sm focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600">
+                </div>
+                
+                <!-- Employee -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-font-important-light dark:text-font-important-dark">
+                        Employee
+                    </label>
+                    <select name="employee" 
+                            class="w-full px-3 py-2 border border-base-200 dark:border-base-700 bg-white dark:bg-base-900 rounded-default text-sm focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600">
+                        <option value="">All Employees</option>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}" {% if selected_employee == emp.id|stringformat:"s" %}selected{% endif %}>
+                            {{ emp.employee_id }} - {{ emp.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Department -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-font-important-light dark:text-font-important-dark">
+                        Department
+                    </label>
+                    <select name="department" 
+                            class="w-full px-3 py-2 border border-base-200 dark:border-base-700 bg-white dark:bg-base-900 rounded-default text-sm focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" {% if selected_department == dept.id|stringformat:"s" %}selected{% endif %}>
+                            {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Branch -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-font-important-light dark:text-font-important-dark">
+                        Branch
+                    </label>
+                    <select name="branch" 
+                            class="w-full px-3 py-2 border border-base-200 dark:border-base-700 bg-white dark:bg-base-900 rounded-default text-sm focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600">
+                        <option value="">All Branches</option>
+                        {% for br in branches %}
+                        <option value="{{ br.id }}" {% if selected_branch == br.id|stringformat:"s" %}selected{% endif %}>
+                            {{ br.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3">
+                <button type="submit" 
+                        class="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-default text-sm transition-colors">
+                    <span class="material-symbols-outlined md-18">search</span>
+                    Apply Filters
+                </button>
+                <button type="button" onclick="window.location.href='{% url 'hr_payroll:attendance_log_report' %}'" 
+                        class="flex items-center gap-2 px-4 py-2 bg-base-300 hover:bg-base-400 dark:bg-base-700 dark:hover:bg-base-600 text-font-default-light dark:text-font-default-dark font-semibold rounded-default text-sm transition-colors">
+                    <span class="material-symbols-outlined md-18">clear_all</span>
+                    Clear Filters
+                </button>
+                <button type="button" onclick="exportToExcel()" 
+                        class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-default text-sm transition-colors">
+                    <span class="material-symbols-outlined md-18">download</span>
+                    Export to Excel
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default p-4 text-center">
+            <div class="text-2xl font-bold text-primary-600 dark:text-primary-500">{{ total_logs }}</div>
+            <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark mt-1">Total Records</div>
+        </div>
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default p-4 text-center">
+            <div class="text-2xl font-bold text-primary-600 dark:text-primary-500">{{ logs|length }}</div>
+            <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark mt-1">Displayed Records</div>
+        </div>
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default p-4 text-center">
+            <div class="text-2xl font-bold text-primary-600 dark:text-primary-500">{{ employees|length }}</div>
+            <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark mt-1">Total Employees</div>
+        </div>
+        <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default p-4 text-center">
+            <div class="text-2xl font-bold text-primary-600 dark:text-primary-500">{{ departments|length }}</div>
+            <div class="text-sm text-font-subtle-light dark:text-font-subtle-dark mt-1">Total Departments</div>
+        </div>
+    </div>
+    
+    <!-- Table -->
+    <div class="bg-white dark:bg-base-900 border border-base-200 dark:border-base-800 rounded-default overflow-hidden">
+        <div class="overflow-x-auto overflow-y-auto" style="max-height: 600px;">
+            <table class="w-full text-sm border-collapse">
+                <thead class="sticky top-0 bg-primary-600 dark:bg-primary-700 text-white">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Employee ID</th>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Employee Name</th>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Department</th>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Timestamp</th>
+                        <th class="px-4 py-3 text-center font-semibold whitespace-nowrap border border-white/20">Type</th>
+                        <th class="px-4 py-3 text-center font-semibold whitespace-nowrap border border-white/20">Source</th>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Device</th>
+                        <th class="px-4 py-3 text-left font-semibold whitespace-nowrap border border-white/20">Branch</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr class="hover:bg-base-50 dark:hover:bg-base-800 transition-colors">
+                        <td class="px-4 py-3 font-semibold text-font-important-light dark:text-font-important-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.employee.employee_id }}
+                        </td>
+                        <td class="px-4 py-3 text-font-default-light dark:text-font-default-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.employee.name }}
+                        </td>
+                        <td class="px-4 py-3 text-font-default-light dark:text-font-default-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.employee.department.name|default:"-" }}
+                        </td>
+                        <td class="px-4 py-3 text-font-default-light dark:text-font-default-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <td class="px-4 py-3 text-center whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {% if log.attendance_type == 'IN' %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                Check In
+                            </span>
+                            {% elif log.attendance_type == 'OUT' %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                Check Out
+                            </span>
+                            {% else %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-base-200 text-base-800 dark:bg-base-700 dark:text-base-200">
+                                -
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {% if log.source_type == 'ZK' %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                ZKTeco
+                            </span>
+                            {% elif log.source_type == 'MN' %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                Manual
+                            </span>
+                            {% elif log.source_type == 'MB' %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                Mobile
+                            </span>
+                            {% else %}
+                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-base-200 text-base-800 dark:bg-base-700 dark:text-base-200">
+                                {{ log.get_source_type_display }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-font-default-light dark:text-font-default-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.device.name }}
+                        </td>
+                        <td class="px-4 py-3 text-font-default-light dark:text-font-default-dark whitespace-nowrap border border-base-200 dark:border-base-800">
+                            {{ log.branch.name|default:"-" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-4 py-8 text-center text-font-subtle-light dark:text-font-subtle-dark">
+                            No attendance logs found. Try adjusting your filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% if total_logs > 500 %}
+    <div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-default">
+        <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            <strong>Note:</strong> Showing first 500 records. Use filters to narrow down results or export to Excel for full data.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function exportToExcel() {
+    const form = document.getElementById('filterForm');
+    const url = new URL(form.action || window.location.href);
+    const formData = new FormData(form);
+    
+    for (let [key, value] of formData.entries()) {
+        if (value) {
+            url.searchParams.set(key, value);
+        }
+    }
+    
+    url.searchParams.set('export', 'excel');
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}
