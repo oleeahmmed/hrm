@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.utils import timezone
+from datetime import datetime
 from ..models import (
     Department, Designation, Shift, Employee, EmployeePersonalInfo,
     EmployeeEducation, EmployeeSalary, EmployeeSkill, AttendanceLog,
@@ -250,13 +252,14 @@ class ZKTecoAttendanceSerializer(serializers.Serializer):
             parts = attlog.split(",")
             if len(parts) >= 2:
                 user_id = parts[0]
-                punch_time = parts[1]
+                punch_time_str = parts[1]
                 status = parts[2] if len(parts) > 2 else ""
                 verify = parts[3] if len(parts) > 3 else ""
                 workcode = parts[4] if len(parts) > 4 else ""
                 
-                from datetime import datetime
-                punch_time = datetime.strptime(punch_time, "%Y-%m-%d %H:%M:%S")
+                # Parse datetime and make it timezone aware
+                punch_time = datetime.strptime(punch_time_str, "%Y-%m-%d %H:%M:%S")
+                punch_time = timezone.make_aware(punch_time)
                 
                 return AttendanceLog.objects.create(
                     user_id=user_id,
@@ -295,8 +298,10 @@ class ZKTecoPostDataSerializer(serializers.Serializer):
                         workcode = parts[4] if len(parts) > 4 else ""
                         
                         try:
-                            from datetime import datetime
+                            # Parse datetime and make it timezone aware
                             punch_time = datetime.strptime(punch_time_str, "%Y-%m-%d %H:%M:%S")
+                            punch_time = timezone.make_aware(punch_time)
+                            
                             log = AttendanceLog.objects.create(
                                 user_id=user_id,
                                 punch_time=punch_time,
