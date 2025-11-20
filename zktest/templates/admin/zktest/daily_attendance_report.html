@@ -1,0 +1,467 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n static unfold %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    <span class="separator">›</span>
+    <span>{% trans 'Daily Attendance Report' %}</span>
+</div>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/print-js/1.6.0/print.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/print-js/1.6.0/print.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
+                {% trans "Daily Attendance Report" %}
+            </h1>
+            <p class="mt-2 text-sm text-muted-foreground">{% trans "Work Day: 6:00 AM - 4:00 AM (Next Day) | Unpaired Punch = 30 Min Break" %}</p>
+        </div>
+        <button onclick="printReport()" type="button"
+            class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Print' %}">
+            <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            <span class="text-white text-sm font-medium">{% trans "Print" %}</span>
+        </button>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="rounded-xl border bg-card text-card-foreground shadow-md hover:shadow-lg transition-shadow">
+        <div class="p-6 bg-gradient-to-br from-primary/5 to-transparent">
+            <form method="GET" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="space-y-2">
+                        <label for="id_from_date" class="text-sm font-medium leading-none">{% trans "From Date" %} *</label>
+                        {{ form.from_date }}
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="id_to_date" class="text-sm font-medium leading-none">{% trans "To Date" %} *</label>
+                        {{ form.to_date }}
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="id_employee" class="text-sm font-medium leading-none">{% trans "Employee" %}</label>
+                        {{ form.employee }}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="id_break_time_minutes" class="text-sm font-medium leading-none">{% trans "Break Time (min)" %}</label>
+                        {{ form.break_time_minutes }}
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <button type="submit" class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Generate Report' %}">
+                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span class="text-white text-sm font-medium">{% trans "Generate Report" %}</span>
+                    </button>
+                    <a href="{% url 'zktest:daily-attendance-report' %}" class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Reset' %}">
+                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span class="text-white text-sm font-medium">{% trans "Reset" %}</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="group rounded-xl border bg-gradient-to-br from-card to-card/50 text-card-foreground shadow-md hover:shadow-xl transition-all hover:scale-105 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-muted-foreground">{% trans "Total Records" %}</p>
+                    <p class="text-3xl font-bold mt-2 bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">{{ total_records }}</p>
+                </div>
+                <div class="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl group-hover:scale-110 transition-transform">
+                    <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="group rounded-xl border bg-gradient-to-br from-green-50 to-card dark:from-green-950/20 dark:to-card text-card-foreground shadow-md hover:shadow-xl transition-all hover:scale-105 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-muted-foreground">{% trans "Present Days" %}</p>
+                    <p class="text-3xl font-bold mt-2 text-green-600 dark:text-green-400">{{ total_present }}</p>
+                </div>
+                <div class="p-3 bg-gradient-to-br from-green-200 to-green-100 dark:from-green-900/50 dark:to-green-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                    <svg class="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="group rounded-xl border bg-gradient-to-br from-red-50 to-card dark:from-red-950/20 dark:to-card text-card-foreground shadow-md hover:shadow-xl transition-all hover:scale-105 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-muted-foreground">{% trans "Absent Days" %}</p>
+                    <p class="text-3xl font-bold mt-2 text-red-600 dark:text-red-400">{{ total_absent }}</p>
+                </div>
+                <div class="p-3 bg-gradient-to-br from-red-200 to-red-100 dark:from-red-900/50 dark:to-red-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                    <svg class="w-7 h-7 text-red-600 dark:text-red-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="group rounded-xl border bg-gradient-to-br from-blue-50 to-card dark:from-blue-950/20 dark:to-card text-card-foreground shadow-md hover:shadow-xl transition-all hover:scale-105 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-muted-foreground">{% trans "Total Amount" %}</p>
+                    <p class="text-3xl font-bold mt-2 text-blue-600 dark:text-blue-400">৳{{ total_amount }}</p>
+                </div>
+                <div class="p-3 bg-gradient-to-br from-blue-200 to-blue-100 dark:from-blue-900/50 dark:to-blue-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                    <svg class="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl border bg-card text-card-foreground shadow-md hover:shadow-lg transition-all p-5">
+            <p class="text-sm font-medium text-muted-foreground mb-1">{% trans "Total Work Hours" %}</p>
+            <p class="text-2xl font-bold">{{ total_work_hours }}h</p>
+        </div>
+        
+        <div class="rounded-xl border bg-gradient-to-br from-purple-50 to-card dark:from-purple-950/20 dark:to-card text-card-foreground shadow-md hover:shadow-lg transition-all p-5">
+            <p class="text-sm font-medium text-muted-foreground mb-2">{% trans "Smart Pairing Rules" %}</p>
+            <div class="space-y-1 text-xs text-muted-foreground">
+                <p>✓ Gap ≤ 30 min = Work time (paired)</p>
+                <p>✓ Unpaired punch = 30 min break added</p>
+                <p>✓ Work Hours = Paired Time - Break Time</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Table -->
+    <div id="printable-area" class="rounded-xl border bg-card text-card-foreground shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+        {% if attendance_records %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-muted/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Date" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Employee" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Status" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Check In" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Check Out" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "All Punches" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Count" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Paired Time" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Break" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Unpaired" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Work Hours" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Amount" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in attendance_records %}
+                    <tr class="border-t border-border hover:bg-muted/50 transition-colors {% if record.punch_logs %}cursor-pointer{% endif %}" {% if record.punch_logs %}onclick="toggleDetails('details-{{ forloop.counter }}')"{% endif %}>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                            {% if record.punch_logs %}
+                            <span class="inline-flex items-center gap-1">
+                                <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                                {{ record.date|date:"d M, Y" }}
+                            </span>
+                            {% else %}
+                            {{ record.date|date:"d M, Y" }}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            <div class="font-medium">{{ record.employee.employee_id }}</div>
+                            <div class="text-xs text-muted-foreground">{{ record.employee.get_full_name }}</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if record.status == 'present' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                {% trans "Present" %}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                {% trans "Absent" %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            {{ record.check_in_time|date:"H:i"|default:"-" }}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            {{ record.check_out_time|date:"H:i"|default:"-" }}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            {% if record.punch_logs %}
+                            <div class="flex flex-wrap gap-1">
+                                {% for log in record.punch_logs %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                    {{ log.punch_time|date:"H:i:s" }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted-foreground text-xs">No punches</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
+                            {% if record.total_punches > 0 %}
+                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium {% if record.total_punches|divisibleby:2 %}bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400{% else %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400{% endif %}">
+                                {{ record.total_punches }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted-foreground">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            {% if record.paired_time_minutes > 0 %}
+                            <span class="text-green-600 dark:text-green-400 font-medium">{{ record.paired_time_minutes }} min</span>
+                            {% else %}
+                            <span class="text-muted-foreground">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            {% if record.break_time_minutes > 0 %}
+                            <span class="text-orange-600 dark:text-orange-400">{{ record.break_time_minutes }} min</span>
+                            {% else %}
+                            <span class="text-muted-foreground">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            {% if record.unpaired_punches > 0 %}
+                            <span class="text-red-600 dark:text-red-400 font-medium">{{ record.unpaired_punches }}</span>
+                            {% else %}
+                            <span class="text-muted-foreground">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                            {% if record.work_hours > 0 %}
+                            <span class="text-green-600 dark:text-green-400">{{ record.work_hours }}h</span>
+                            {% else %}
+                            <span class="text-muted-foreground">0h</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                            {% if record.daily_amount > 0 %}
+                            <span class="text-blue-600 dark:text-blue-400">৳{{ record.daily_amount }}</span>
+                            {% else %}
+                            <span class="text-muted-foreground">৳0.00</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if record.punch_logs %}
+                    <tr id="details-{{ forloop.counter }}" class="hidden border-t border-border bg-muted/20">
+                        <td colspan="11" class="px-4 py-4">
+                            <div class="space-y-4">
+                                <!-- Punch Pairs Section -->
+                                {% if record.punch_pairs %}
+                                <div>
+                                    <h4 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"></h4>
+                                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        {% trans "Paired Punches" %} ({{ record.paired_punches }} punches, {{ record.paired_time_minutes }} min)
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {% for pair in record.punch_pairs %}
+                                        <div class="rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-medium text-green-700 dark:text-green-400">Pair #{{ forloop.counter }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-600 text-white">
+                                                    {{ pair.2 }} min
+                                                </span>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                                                    </svg>
+                                                    <span class="text-sm font-semibold">IN: {{ pair.0|date:"H:i:s" }}</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H3"/>
+                                                    </svg>
+                                                    <span class="text-sm font-semibold">OUT: {{ pair.1|date:"H:i:s" }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Break Periods Section -->
+                                {% if record.break_periods %}
+                                <div>
+                                    <h4 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        {% trans "Break Periods" %} ({{ record.break_time_minutes }} min deducted)
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {% for break_period in record.break_periods %}
+                                        <div class="rounded-lg border-2 border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-medium text-orange-700 dark:text-orange-400">Break #{{ forloop.counter }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-600 text-white">
+                                                    {{ break_period.2 }} min
+                                                </span>
+                                            </div>
+                                            <div class="space-y-1">
+                                                <div class="text-xs text-orange-700 dark:text-orange-400">
+                                                    {{ break_period.0|date:"H:i:s" }} → {{ break_period.1|date:"H:i:s" }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Unpaired Punches Section -->
+                                {% if record.unpaired_punch_times %}
+                                <div>
+                                    <h4 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                        {% trans "Unpaired Punches" %} ({{ record.unpaired_punches }} punches, 30 min break each)
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        {% for unpaired_time in record.unpaired_punch_times %}
+                                        <div class="rounded-lg border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-3">
+                                            <div class="flex items-center justify-between mb-1">
+                                                <span class="text-xs font-medium text-red-700 dark:text-red-400">Unpaired</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white">
+                                                    +30m break
+                                                </span>
+                                            </div>
+                                            <div class="text-sm font-semibold text-red-700 dark:text-red-400">
+                                                {{ unpaired_time|date:"H:i:s" }}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Summary Section -->
+                                <div class="mt-3 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-200 dark:border-blue-800">
+                                    <h4 class="text-sm font-semibold text-foreground mb-3">{% trans "Calculation Summary" %}</h4>
+                                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
+                                        <div class="text-center">
+                                            <div class="text-muted-foreground mb-1">Paired Time</div>
+                                            <div class="text-lg font-bold text-green-600">{{ record.paired_time_minutes }}m</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-muted-foreground mb-1">Break Time</div>
+                                            <div class="text-lg font-bold text-orange-600">-{{ record.break_time_minutes }}m</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-muted-foreground mb-1">Unpaired</div>
+                                            <div class="text-lg font-bold text-red-600">{{ record.unpaired_punches }}</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-muted-foreground mb-1">Work Time</div>
+                                            <div class="text-lg font-bold text-blue-600">{{ record.work_hours }}h</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-muted-foreground mb-1">Amount</div>
+                                            <div class="text-lg font-bold text-purple-600">৳{{ record.daily_amount }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 text-xs text-center text-muted-foreground">
+                                        Formula: Work Hours = (Paired Time - Break Time - Penalty) ÷ 60
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-muted-foreground mb-4" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <p class="text-muted-foreground text-sm">{% trans "Please select date range and click 'Generate Report' to view attendance records." %}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function toggleDetails(id) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.classList.toggle('hidden');
+        }
+    }
+
+    function printReport() {
+        // Hide all detail rows before printing
+        const detailRows = document.querySelectorAll('[id^="details-"]');
+        detailRows.forEach(row => row.classList.add('hidden'));
+        
+        printJS({
+            printable: 'printable-area',
+            type: 'html',
+            header: '<div style="text-align: center; margin-bottom: 20px;"><h1 style="margin: 0; font-size: 24px; font-weight: bold;">ZKTest System</h1><h2 style="margin: 5px 0; font-size: 18px;">Daily Attendance Report</h2><p style="margin: 0; font-size: 14px;">Work Day: 6:00 AM - 4:00 AM (Next Day)</p><p style="margin: 0; font-size: 14px;">Generated: ' + new Date().toLocaleDateString() + '</p></div>',
+            style: `
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }
+            th { background-color: #f3f4f6; font-weight: bold; }
+            tr:nth-child(even) { background-color: #f9fafb; }
+            .hidden { display: none; }
+        `,
+            scanStyles: false
+        });
+    }
+</script>
+{% endblock %}

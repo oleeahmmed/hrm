@@ -419,16 +419,17 @@ UNFOLD = {
             # },
             # ==================== ZKTEST SYSTEM ====================
             {
-                "title": _("🔧 ZKTEST SYSTEM"),
+                "title": _("🔧 ZKTest System"),
                 "separator": True,
-                "collapsible": False,
-                "items": [],
-            },
-            {
-                "title": _("ZKTest Management"),
-                "separator": False,
                 "collapsible": True,
                 "items": [
+                    # Management
+                    {
+                        "title": _("Employees"),
+                        "icon": "groups",
+                        "link": admin_changelist("zktest", "employee"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_employee"),
+                    },
                     {
                         "title": _("Departments"),
                         "icon": "corporate_fare",
@@ -447,19 +448,7 @@ UNFOLD = {
                         "link": admin_changelist("zktest", "shift"),
                         "permission": lambda request: request.user.has_perm("zktest.view_shift"),
                     },
-                    {
-                        "title": _("Employees"),
-                        "icon": "groups",
-                        "link": admin_changelist("zktest", "employee"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_employee"),
-                    },
-                ],
-            },
-            {
-                "title": _("ZKTest Employee Details"),
-                "separator": False,
-                "collapsible": True,
-                "items": [
+                    # Employee Details
                     {
                         "title": _("Personal Info"),
                         "icon": "person_outline",
@@ -484,13 +473,7 @@ UNFOLD = {
                         "link": admin_changelist("zktest", "employeeskill"),
                         "permission": lambda request: request.user.has_perm("zktest.view_employeeskill"),
                     },
-                ],
-            },
-            {
-                "title": _("ZKTest Attendance"),
-                "separator": False,
-                "collapsible": True,
-                "items": [
+                    # Attendance
                     {
                         "title": _("Attendance Logs"),
                         "icon": "fingerprint",
@@ -503,13 +486,20 @@ UNFOLD = {
                         "link": admin_changelist("zktest", "attendance"),
                         "permission": lambda request: request.user.has_perm("zktest.view_attendance"),
                     },
-                ],
-            },
-            {
-                "title": _("ZKTest Leave & Overtime"),
-                "separator": False,
-                "collapsible": True,
-                "items": [
+                    # Reports
+                    {
+                        "title": _("📊 Attendance Log Report"),
+                        "icon": "assessment",
+                        "link": lambda request: reverse_lazy("zktest:attendance-log-report"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
+                    },
+                    {
+                        "title": _("📊 Daily Attendance Report"),
+                        "icon": "summarize",
+                        "link": lambda request: reverse_lazy("zktest:daily-attendance-report"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
+                    },
+                    # Leave & Overtime
                     {
                         "title": _("Leave Types"),
                         "icon": "category",
@@ -534,13 +524,7 @@ UNFOLD = {
                         "link": admin_changelist("zktest", "overtime"),
                         "permission": lambda request: request.user.has_perm("zktest.view_overtime"),
                     },
-                ],
-            },
-            {
-                "title": _("ZKTest Scheduling"),
-                "separator": False,
-                "collapsible": True,
-                "items": [
+                    # Scheduling
                     {
                         "title": _("Holidays"),
                         "icon": "celebration",
@@ -565,13 +549,7 @@ UNFOLD = {
                         "link": admin_changelist("zktest", "rosterday"),
                         "permission": lambda request: request.user.has_perm("zktest.view_rosterday"),
                     },
-                ],
-            },
-            {
-                "title": _("ZKTest Other"),
-                "separator": False,
-                "collapsible": True,
-                "items": [
+                    # Other
                     {
                         "title": _("Notices"),
                         "icon": "campaign",

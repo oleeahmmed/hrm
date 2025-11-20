@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.db import models
+from django.urls import reverse
+from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 from unfold.contrib.filters.admin import (
     RangeDateFilter,
@@ -197,6 +199,12 @@ class AttendanceLogAdmin(ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def changelist_view(self, request, extra_context=None):
+        """Add report link to changelist view"""
+        extra_context = extra_context or {}
+        extra_context['report_url'] = reverse('zktest:attendance-log-report')
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(Attendance)
