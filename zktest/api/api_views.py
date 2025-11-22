@@ -26,7 +26,7 @@ from .serializers import (
     LeaveBalanceSerializer, LeaveApplicationSerializer, HolidaySerializer,
     OvertimeSerializer, NoticeSerializer, LocationSerializer,
     UserLocationSerializer, RosterSerializer, RosterAssignmentSerializer,
-    RosterDaySerializer, ZKTecoAttendanceSerializer, ZKTecoPostDataSerializer
+    RosterDaySerializer, ZKTecoAttendanceSerializer, ZKTecoPostDataSerializer,ZKTecoUserDataSerializer
 )
 
 
@@ -245,23 +245,24 @@ class RosterDayViewSet(viewsets.ModelViewSet):
 
 
 # ==================== ZKTECO DEVICE PUSH API VIEWS ====================
-
 @method_decorator(csrf_exempt, name='dispatch')
 class ZKTecoAttendancePushView(APIView):
     """
-    ZKTeco device attendance push endpoint
-    Handles both GET and POST requests from ZKTeco devices
+    ZKTeco device data push endpoint
+    
+    Handles:
+    - ATTLOG (attendance logs)
+    - USER (user list sync)
     
     Endpoints:
-    - /iclock/getrequest (GET) - ZKTeco device push protocol
-    - /iclock/cdata (POST) - ZKTeco device bulk data protocol
-    - /zk-push/ (GET) - Alternative endpoint
-    - /zk-cdata/ (POST) - Alternative endpoint
+    - GET /iclock/getrequest - Single attendance log
+    - POST /iclock/cdata?table=ATTLOG - Bulk attendance logs
+    - POST /iclock/cdata?table=USER - User list sync
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
-        """Handle GET request from ZKTeco device"""
+        """Handle GET request - Single attendance log"""
         sn = request.GET.get('SN', '')
         attlog = request.GET.get('ATTLOG', '')
         
@@ -283,14 +284,18 @@ class ZKTecoAttendancePushView(APIView):
         return HttpResponse("OK")
     
     def post(self, request):
-        """Handle POST request from ZKTeco device"""
+        """Handle POST request - Bulk data (ATTLOG or USER)"""
         sn = request.GET.get('SN', '')
         table = request.GET.get('table', '')
         
-        # Get the POST body data
+        # Get POST body data
         body = request.body.decode('utf-8', errors='ignore')
         
-        if table == 'ATTLOG' and body:
+        if not body:
+            return HttpResponse("OK")
+        
+        # Process based on table type
+        if table == 'ATTLOG':
             serializer = ZKTecoPostDataSerializer(data={
                 'body_data': body,
                 'device_sn': sn
@@ -298,10 +303,30 @@ class ZKTecoAttendancePushView(APIView):
             
             if serializer.is_valid():
                 created_logs = serializer.save()
+                print(f"Device {sn}: Created {len(created_logs)} attendance logs")
                 return HttpResponse("OK")
             else:
+                print(f"ATTLOG Error: {serializer.errors}")
                 return HttpResponse(f"ERROR: {serializer.errors}", status=400)
         
+        elif table == 'USER':
+            serializer = ZKTecoUserDataSerializer(data={
+                'body_data': body,
+                'device_sn': sn
+            })
+            
+            if serializer.is_valid():
+                result = serializer.save()
+                created_count = len(result['created'])
+                updated_count = len(result['updated'])
+                print(f"Device {sn}: User sync - {created_count} created, {updated_count} updated")
+                return HttpResponse("OK")
+            else:
+                print(f"USER Error: {serializer.errors}")
+                return HttpResponse(f"ERROR: {serializer.errors}", status=400)
+        
+        # Unknown table type
+        print(f"Unknown table type: {table}")
         return HttpResponse("OK")
 
 
