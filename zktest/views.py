@@ -4,13 +4,15 @@ ZKTest Views - Attendance Log Report Views
 """
 
 from django.contrib import admin
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 
 from zktest.models import AttendanceLog, Employee, Department, Shift, EmployeeSalary
 from zktest.utils import generate_attendance_from_logs
@@ -281,3 +283,93 @@ class DailyAttendanceReportView(View):
         }
         
         return render(request, 'admin/zktest/daily_attendance_report.html', context)
+
+
+
+# ==================== MOBILE VIEWS ====================
+
+class MobileLoginView(View):
+    """Mobile Login View"""
+    
+    def get(self, request):
+        if request.user.is_authenticated:
+            return redirect('zktest:mobile-dashboard')
+        return render(request, 'zktest/mobile/login.html')
+    
+    def post(self, request):
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            return redirect('zktest:mobile-dashboard')
+        else:
+            return render(request, 'zktest/mobile/login.html', {
+                'error': 'Invalid username or password'
+            })
+
+
+class MobileLogoutView(View):
+    """Mobile Logout View"""
+    
+    def get(self, request):
+        logout(request)
+        return redirect('zktest:mobile-login')
+
+
+class MobileDashboardView(View):
+    """Mobile Dashboard View - Shows attendance logs by date"""
+    
+    @method_decorator(login_required(login_url='zktest:mobile-login'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get(self, request):
+        # Get date from query parameter or use today
+        selected_date_str = request.GET.get('date')
+        if selected_date_str:
+            try:
+                from datetime import datetime
+                selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                selected_date = date.today()
+        else:
+            selected_date = date.today()
+        
+        # Get attendance logs for selected date
+        date_logs = AttendanceLog.objects.filter(
+            punch_time__date=selected_date
+        ).order_by('-punch_time')
+        
+        # Get statistics
+        total_logs = date_logs.count()
+        unique_employees = date_logs.values('user_id').distinct().count()
+        processed_logs = date_logs.filter(is_processed=True).count()
+        unprocessed_logs = date_logs.filter(is_processed=False).count()
+        
+        # Get employee lookup dictionary
+        user_ids = [log.user_id for log in date_logs[:50]]  # Limit to 50 for mobile
+        employees_dict = {}
+        if user_ids:
+            employees = Employee.objects.filter(user_id__in=user_ids)
+            employees_dict = {emp.user_id: emp for emp in employees}
+        
+        # Attach employee objects to logs
+        log_list = date_logs[:50]
+        for log in log_list:
+            log.employee_obj = employees_dict.get(log.user_id)
+        
+        context = {
+            'selected_date': selected_date,
+            'today': date.today(),
+            'is_today': selected_date == date.today(),
+            'logs': log_list,
+            'total_logs': total_logs,
+            'unique_employees': unique_employees,
+            'processed_logs': processed_logs,
+            'unprocessed_logs': unprocessed_logs,
+        }
+        
+        return render(request, 'zktest/mobile/dashboard.html', context)

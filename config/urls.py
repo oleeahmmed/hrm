@@ -25,6 +25,7 @@ urlpatterns = [
     path('admin/zktest/', include('zktest.urls')),
     path('admin/', admin.site.urls),
     path('', include('zktest.api.urls')),
+    path('', include('zktest.urls')),
 
 ]
 

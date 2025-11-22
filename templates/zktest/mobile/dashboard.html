@@ -1,0 +1,390 @@
+{% extends 'zktest/mobile/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - HRM System{% endblock %}
+
+{% block content %}
+<!-- App Header -->
+<div class="appHeader bg-primary text-light">
+    <div class="left">
+        <a href="#" class="headerButton" data-bs-toggle="modal" data-bs-target="#sidebarPanel">
+            <ion-icon name="menu-outline"></ion-icon>
+        </a>
+    </div>
+    <div class="pageTitle">
+        HRM Dashboard
+    </div>
+    <div class="right">
+        <a href="{% url 'zktest:mobile-logout' %}" class="headerButton">
+            <ion-icon name="log-out-outline"></ion-icon>
+        </a>
+    </div>
+</div>
+<!-- * App Header -->
+
+<!-- App Capsule -->
+<div id="appCapsule">
+
+    <!-- Stats Card -->
+    <div class="section wallet-card-section pt-1">
+        <div class="wallet-card">
+            <!-- Balance -->
+            <div class="balance">
+                <div class="left">
+                    <span class="title">
+                        {% if is_today %}
+                        Today's Attendance
+                        {% else %}
+                        Attendance
+                        {% endif %}
+                    </span>
+                    <h1 class="total">{{ selected_date|date:"d M Y" }}</h1>
+                </div>
+                <div class="right">
+                    <a href="#" class="button" data-bs-toggle="modal" data-bs-target="#datePickerModal">
+                        <ion-icon name="calendar-outline"></ion-icon>
+                    </a>
+                </div>
+            </div>
+            <!-- * Balance -->
+        </div>
+    </div>
+    <!-- * Stats Card -->
+
+    <!-- Stats -->
+    <div class="section">
+        <div class="row mt-2">
+            <div class="col-6">
+                <div class="stat-box">
+                    <div class="title">Total Logs</div>
+                    <div class="value text-primary">{{ total_logs }}</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-box">
+                    <div class="title">Employees</div>
+                    <div class="value text-success">{{ unique_employees }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-6">
+                <div class="stat-box">
+                    <div class="title">Processed</div>
+                    <div class="value text-success">{{ processed_logs }}</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-box">
+                    <div class="title">Unprocessed</div>
+                    <div class="value text-warning">{{ unprocessed_logs }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- * Stats -->
+
+    <!-- Attendance Logs -->
+    <div class="section mt-4">
+        <div class="section-heading">
+            <h2 class="title">
+                {% if is_today %}
+                Today's Attendance Logs
+                {% else %}
+                Attendance Logs
+                {% endif %}
+            </h2>
+            {% if not is_today %}
+            <a href="{% url 'zktest:mobile-dashboard' %}" class="link">Today</a>
+            {% else %}
+            <a href="#" onclick="location.reload()" class="link">Refresh</a>
+            {% endif %}
+        </div>
+        
+        {% if not is_today %}
+        <div class="alert alert-info alert-dismissible fade show mb-2" role="alert">
+            <ion-icon name="information-circle-outline"></ion-icon>
+            Viewing attendance for {{ selected_date|date:"l, d F Y" }}
+            <a href="{% url 'zktest:mobile-dashboard' %}" class="btn btn-sm btn-primary ms-2">Back to Today</a>
+        </div>
+        {% endif %}
+        
+        {% if logs %}
+        <div class="transactions">
+            {% for log in logs %}
+            <!-- item -->
+            <div class="item">
+                <div class="detail">
+                    <div class="image-block imaged w48" style="background: #6236FF; display: flex; align-items: center; justify-content: center; border-radius: 10px;">
+                        <ion-icon name="person-outline" style="font-size: 24px; color: white;"></ion-icon>
+                    </div>
+                    <div>
+                        <strong>
+                            {% if log.employee_obj %}
+                                {{ log.employee_obj.get_full_name }}
+                            {% else %}
+                                User: {{ log.user_id }}
+                            {% endif %}
+                        </strong>
+                        <p>{{ log.punch_time|date:"h:i A" }}</p>
+                    </div>
+                </div>
+                <!-- <div class="right">
+                    {% if log.is_processed %}
+                    <span class="badge badge-success">Processed</span>
+                    {% else %}
+                    <span class="badge badge-warning">Pending</span>
+                    {% endif %}
+                </div> -->
+            </div>
+            <!-- * item -->
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center">
+                <ion-icon name="calendar-outline" style="font-size: 48px; color: #ccc;"></ion-icon>
+                <p class="mt-2">No attendance logs for {{ selected_date|date:"d M Y" }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <!-- * Attendance Logs -->
+
+    <!-- app footer -->
+    <div class="appFooter">
+        <div class="footer-title">
+            HRM Attendance System © 2024
+        </div>
+        Powered by Django
+    </div>
+    <!-- * app footer -->
+
+</div>
+<!-- * App Capsule -->
+
+<!-- App Bottom Menu -->
+<div class="appBottomMenu">
+    <a href="{% url 'zktest:mobile-dashboard' %}" class="item active">
+        <div class="col">
+            <ion-icon name="home-outline"></ion-icon>
+            <strong>Dashboard</strong>
+        </div>
+    </a>
+    <a href="#" class="item">
+        <div class="col">
+            <ion-icon name="calendar-outline"></ion-icon>
+            <strong>Attendance</strong>
+        </div>
+    </a>
+    <a href="#" class="item">
+        <div class="col">
+            <ion-icon name="people-outline"></ion-icon>
+            <strong>Employees</strong>
+        </div>
+    </a>
+    <a href="#" class="item">
+        <div class="col">
+            <ion-icon name="stats-chart-outline"></ion-icon>
+            <strong>Reports</strong>
+        </div>
+    </a>
+    <a href="{% url 'zktest:mobile-logout' %}" class="item">
+        <div class="col">
+            <ion-icon name="log-out-outline"></ion-icon>
+            <strong>Logout</strong>
+        </div>
+    </a>
+</div>
+<!-- * App Bottom Menu -->
+
+<!-- App Sidebar -->
+<div class="modal fade panelbox panelbox-left" id="sidebarPanel" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-body p-0">
+                <!-- profile box -->
+                <div class="profileBox pt-2 pb-2">
+                    <div class="image-wrapper">
+                        <div class="imaged w36" style="background: #6236FF; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+                            <ion-icon name="person-outline" style="font-size: 20px; color: white;"></ion-icon>
+                        </div>
+                    </div>
+                    <div class="in">
+                        <strong>{{ user.username }}</strong>
+                        <div class="text-muted">{{ user.email }}</div>
+                    </div>
+                    <a href="#" class="btn btn-link btn-icon sidebar-close" data-bs-dismiss="modal">
+                        <ion-icon name="close-outline"></ion-icon>
+                    </a>
+                </div>
+                <!-- * profile box -->
+
+                <!-- menu -->
+                <div class="listview-title mt-1">Menu</div>
+                <ul class="listview flush transparent no-line image-listview">
+                    <li>
+                        <a href="{% url 'zktest:mobile-dashboard' %}" class="item">
+                            <div class="icon-box bg-primary">
+                                <ion-icon name="home-outline"></ion-icon>
+                            </div>
+                            <div class="in">
+                                Dashboard
+                            </div>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="item">
+                            <div class="icon-box bg-primary">
+                                <ion-icon name="calendar-outline"></ion-icon>
+                            </div>
+                            <div class="in">
+                                Attendance
+                            </div>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="item">
+                            <div class="icon-box bg-primary">
+                                <ion-icon name="people-outline"></ion-icon>
+                            </div>
+                            <div class="in">
+                                Employees
+                            </div>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="item">
+                            <div class="icon-box bg-primary">
+                                <ion-icon name="stats-chart-outline"></ion-icon>
+                            </div>
+                            <div class="in">
+                                Reports
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+                <!-- * menu -->
+
+                <!-- others -->
+                <div class="listview-title mt-1">Others</div>
+                <ul class="listview flush transparent no-line image-listview">
+                    <li>
+                        <a href="{% url 'zktest:mobile-logout' %}" class="item">
+                            <div class="icon-box bg-danger">
+                                <ion-icon name="log-out-outline"></ion-icon>
+                            </div>
+                            <div class="in">
+                                Log out
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+                <!-- * others -->
+
+            </div>
+        </div>
+    </div>
+</div>
+<!-- * App Sidebar -->
+
+<!-- Date Picker Modal -->
+<div class="modal fade action-sheet" id="datePickerModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Date</h5>
+            </div>
+            <div class="modal-body">
+                <div class="action-sheet-content">
+                    <form method="get" action="{% url 'zktest:mobile-dashboard' %}">
+                        <div class="form-group basic">
+                            <div class="input-wrapper">
+                                <label class="label" for="dateInput">Choose Date</label>
+                                <input type="date" class="form-control" id="dateInput" name="date" 
+                                       value="{{ selected_date|date:'Y-m-d' }}" 
+                                       max="{{ today|date:'Y-m-d' }}" required>
+                                <i class="clear-input">
+                                    <ion-icon name="close-circle"></ion-icon>
+                                </i>
+                            </div>
+                        </div>
+
+                        <div class="form-group basic">
+                            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                                View Attendance
+                            </button>
+                        </div>
+                        
+                        <div class="form-group basic">
+                            <a href="{% url 'zktest:mobile-dashboard' %}" class="btn btn-outline-secondary btn-block btn-lg">
+                                Back to Today
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- * Date Picker Modal -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Quick date selection buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateInput = document.getElementById('dateInput');
+        
+        // Add quick date buttons
+        const quickDatesHtml = `
+            <div class="row mt-2 mb-2">
+                <div class="col-4">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-block quick-date" data-days="0">
+                        Today
+                    </button>
+                </div>
+                <div class="col-4">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-block quick-date" data-days="1">
+                        Yesterday
+                    </button>
+                </div>
+                <div class="col-4">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-block quick-date" data-days="7">
+                        7 Days Ago
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Insert quick date buttons before the date input
+        if (dateInput) {
+            dateInput.closest('.form-group').insertAdjacentHTML('beforebegin', quickDatesHtml);
+            
+            // Add click handlers for quick date buttons
+            document.querySelectorAll('.quick-date').forEach(button => {
+                button.addEventListener('click', function() {
+                    const daysAgo = parseInt(this.getAttribute('data-days'));
+                    const date = new Date();
+                    date.setDate(date.getDate() - daysAgo);
+                    
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    
+                    dateInput.value = `${year}-${month}-${day}`;
+                    
+                    // Highlight selected button
+                    document.querySelectorAll('.quick-date').forEach(btn => {
+                        btn.classList.remove('btn-primary');
+                        btn.classList.add('btn-outline-primary');
+                    });
+                    this.classList.remove('btn-outline-primary');
+                    this.classList.add('btn-primary');
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

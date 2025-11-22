@@ -39,7 +39,6 @@ router.register(r'roster-days', api_views.RosterDayViewSet)
 # The API URLs are now determined automatically by the router
 urlpatterns = [
     # Router URLs
-    path('', include(router.urls)),
     
     # ZKTeco device push endpoints (same as your previous API)
     path('zk-push/', api_views.ZKTecoAttendancePushView.as_view(), name='zk-push'),

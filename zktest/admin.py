@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.db import models
 from django.urls import reverse
 from django.utils.html import format_html
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline, StackedInline
+from unfold.decorators import display
 from unfold.contrib.filters.admin import (
     RangeDateFilter,
     RangeDateTimeFilter,
@@ -31,6 +32,16 @@ class DepartmentAdmin(ModelAdmin):
     search_fields = ('name', 'code', 'description')
     list_editable = ('is_active',)
     ordering = ('name',)
+    
+    fieldsets = (
+        ('Department Information', {
+            'fields': (
+                ('code', 'name'),
+                ('is_active',),
+                ('description',),
+            )
+        }),
+    )
 
 
 @admin.register(Designation)
@@ -40,6 +51,16 @@ class DesignationAdmin(ModelAdmin):
     search_fields = ('name', 'code', 'description')
     list_editable = ('is_active', 'level')
     ordering = ('level', 'name')
+    
+    fieldsets = (
+        ('Designation Information', {
+            'fields': (
+                ('code', 'name'),
+                ('level', 'is_active'),
+                ('description',),
+            )
+        }),
+    )
 
 
 @admin.register(Shift)
@@ -49,30 +70,94 @@ class ShiftAdmin(ModelAdmin):
     search_fields = ('name', 'code')
     list_editable = ('is_active', 'is_night_shift')
     ordering = ('start_time',)
+    
+    fieldsets = (
+        ('Shift Information', {
+            'fields': (
+                ('code', 'name'),
+                ('start_time', 'end_time'),
+                ('break_time', 'grace_time'),
+                ('is_night_shift', 'is_active'),
+            )
+        }),
+    )
 
 
 # ==================== EMPLOYEE ADMIN ====================
 
-class EmployeePersonalInfoInline(admin.StackedInline):
+class EmployeePersonalInfoInline(StackedInline):
     model = EmployeePersonalInfo
     extra = 0
     can_delete = False
+    tab = True
+    
+    fieldsets = (
+        ('Personal Details', {
+            'fields': (
+                ('date_of_birth', 'gender'),
+                ('blood_group', 'marital_status'),
+            )
+        }),
+        ('Identity Documents', {
+            'fields': (
+                ('nid', 'passport_no'),
+            )
+        }),
+        ('Emergency Contact', {
+            'fields': (
+                ('emergency_contact_name', 'emergency_contact_phone'),
+                ('emergency_contact_relation',),
+            )
+        }),
+        ('Address Information', {
+            'fields': (
+                ('city',),
+                ('present_address',),
+                ('permanent_address',),
+            )
+        }),
+    )
 
 
-class EmployeeSalaryInline(admin.StackedInline):
+class EmployeeSalaryInline(StackedInline):
     model = EmployeeSalary
     extra = 0
     can_delete = False
+    tab = True
+    
+    fieldsets = (
+        ('Salary Details', {
+            'fields': (
+                ('base_salary', 'per_hour_rate'),
+                ('expected_working_hours', 'effective_from'),
+            )
+        }),
+        ('Overtime Configuration', {
+            'fields': (
+                ('overtime_rate', 'overtime_grace_minutes'),
+            )
+        }),
+        ('Banking Details', {
+            'fields': (
+                ('bank_name', 'bank_account_no'),
+                ('bank_branch', 'payment_method'),
+            )
+        }),
+    )
 
 
-class EmployeeEducationInline(admin.TabularInline):
+class EmployeeEducationInline(TabularInline):
     model = EmployeeEducation
-    extra = 0
+    extra = 1
+    tab = True
+    fields = ('education_level', 'degree_title', 'institution', 'passing_year', 'result')
 
 
-class EmployeeSkillInline(admin.TabularInline):
+class EmployeeSkillInline(TabularInline):
     model = EmployeeSkill
-    extra = 0
+    extra = 1
+    tab = True
+    fields = ('skill_name', 'skill_level', 'years_of_experience', 'description')
 
 
 @admin.register(Employee)
@@ -92,17 +177,32 @@ class EmployeeAdmin(ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('user_id', 'employee_id', 'first_name', 'last_name', 'email', 'phone_number')
+            'fields': (
+                ('user_id', 'employee_id'),
+                ('first_name', 'last_name'),
+                ('email', 'phone_number'),
+            ),
+            'description': 'Employee basic identification and contact details'
         }),
         ('Organizational Details', {
-            'fields': ('department_code', 'designation_code', 'shift_code')
+            'fields': (
+                ('department_code', 'designation_code', 'shift_code'),
+            ),
+            'description': 'Department, designation and shift assignment'
         }),
         ('Employment Details', {
-            'fields': ('joining_date', 'employment_status', 'is_active')
+            'fields': (
+                ('joining_date', 'employment_status', 'is_active'),
+            ),
+            'description': 'Employment status and dates'
         }),
     )
     
     inlines = [EmployeePersonalInfoInline, EmployeeSalaryInline, EmployeeEducationInline, EmployeeSkillInline]
+    
+    @display(description='Full Name', ordering='first_name')
+    def get_full_name(self, obj):
+        return obj.get_full_name()
 
 
 @admin.register(EmployeePersonalInfo)
@@ -182,20 +282,31 @@ class AttendanceLogAdmin(ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('user_id', 'punch_time', 'device_sn')
+            'fields': (
+                ('user_id', 'punch_time'),
+                ('device_sn',),
+            ),
+            'description': 'Core attendance log information from device'
         }),
         ('Attendance Details', {
-            'fields': ('status', 'verify_type', 'work_code')
+            'fields': (
+                ('status', 'verify_type', 'work_code'),
+            ),
+            'description': 'Verification and status details'
         }),
         ('Processing', {
-            'fields': ('is_processed', 'processed_at')
+            'fields': (
+                ('is_processed', 'processed_at'),
+            ),
+            'description': 'Processing status and timestamp'
         }),
         ('Raw Data', {
-            'fields': ('raw_data',),
-            'classes': ('collapse',)
+            'fields': (('raw_data',),),
+            'classes': ('collapse',),
+            'description': 'Complete raw data from device'
         }),
         ('Timestamps', {
-            'fields': ('created_at',),
+            'fields': (('created_at',),),
             'classes': ('collapse',)
         }),
     )
@@ -222,26 +333,43 @@ class AttendanceAdmin(ModelAdmin):
     
     fieldsets = (
         ('Employee & Date', {
-            'fields': ('user_id', 'date', 'shift_code')
+            'fields': (
+                ('user_id', 'date'),
+                ('shift_code', 'status'),
+            ),
+            'description': 'Employee identification and attendance date'
         }),
         ('Attendance Times', {
-            'fields': ('check_in_time', 'check_out_time')
+            'fields': (
+                ('check_in_time', 'check_out_time'),
+            ),
+            'description': 'Check-in and check-out timestamps'
         }),
         ('Status & Hours', {
-            'fields': ('status', 'work_hours', 'overtime_hours')
+            'fields': (
+                ('work_hours', 'overtime_hours'),
+            ),
+            'description': 'Attendance status and working hours calculation'
         }),
         ('Late & Early Out', {
-            'fields': ('late_minutes', 'early_out_minutes')
+            'fields': (
+                ('late_minutes', 'early_out_minutes'),
+            ),
+            'description': 'Late arrival and early departure tracking'
         }),
         ('Processing Info', {
-            'fields': ('processed_from_logs', 'last_processed_at', 'remarks'),
-            'classes': ('collapse',)
+            'fields': (
+                ('processed_from_logs', 'last_processed_at'),
+                ('remarks',),
+            ),
+            'classes': ('collapse',),
+            'description': 'Processing metadata and additional notes'
         }),
     )
     
+    @display(description='Employee', ordering='user_id__first_name')
     def get_employee_name(self, obj):
         return obj.user_id.get_full_name()
-    get_employee_name.short_description = 'Employee'
 
 
 # ==================== LEAVE MANAGEMENT ADMIN ====================
@@ -253,6 +381,18 @@ class LeaveTypeAdmin(ModelAdmin):
     search_fields = ('name', 'code', 'description')
     list_editable = ('is_active', 'paid', 'requires_approval')
     ordering = ('name',)
+    
+    fieldsets = (
+        ('Leave Type Information', {
+            'fields': (
+                ('code', 'name'),
+                ('max_days', 'max_carry_forward_days'),
+                ('paid', 'carry_forward'),
+                ('requires_approval', 'is_active'),
+                ('description',),
+            )
+        }),
+    )
 
 
 @admin.register(LeaveBalance)
@@ -285,23 +425,37 @@ class LeaveApplicationAdmin(ModelAdmin):
     
     fieldsets = (
         ('Employee & Leave Type', {
-            'fields': ('user_id', 'leave_type_code')
+            'fields': (
+                ('user_id', 'leave_type_code'),
+            ),
+            'description': 'Employee and type of leave being requested'
         }),
         ('Leave Period', {
-            'fields': ('start_date', 'end_date', 'total_days')
+            'fields': (
+                ('start_date', 'end_date', 'total_days'),
+            ),
+            'description': 'Duration of leave application'
         }),
         ('Application Details', {
-            'fields': ('reason', 'status')
+            'fields': (
+                ('status',),
+                ('reason',),
+            ),
+            'description': 'Reason for leave and current status'
         }),
         ('Approval', {
-            'fields': ('approved_by', 'approved_at', 'rejection_reason'),
-            'classes': ('collapse',)
+            'fields': (
+                ('approved_by', 'approved_at'),
+                ('rejection_reason',),
+            ),
+            'classes': ('collapse',),
+            'description': 'Approval or rejection details'
         }),
     )
     
+    @display(description='Employee', ordering='user_id__first_name')
     def get_employee_name(self, obj):
         return obj.user_id.get_full_name()
-    get_employee_name.short_description = 'Employee'
 
 
 # ==================== OTHER MODELS ADMIN ====================
@@ -312,6 +466,16 @@ class HolidayAdmin(ModelAdmin):
     list_filter = ('is_optional', ('date', RangeDateFilter))
     search_fields = ('name', 'description')
     ordering = ('-date',)
+    
+    fieldsets = (
+        ('Holiday Information', {
+            'fields': (
+                ('name', 'date'),
+                ('is_optional',),
+                ('description',),
+            )
+        }),
+    )
 
 
 @admin.register(Overtime)
@@ -326,9 +490,48 @@ class OvertimeAdmin(ModelAdmin):
     search_fields = ('user_id__first_name', 'user_id__last_name')
     ordering = ('-date',)
     
+    fieldsets = (
+        ('Employee & Date', {
+            'fields': (
+                ('user_id', 'date'),
+                ('shift_code',),
+            ),
+            'description': 'Employee and overtime date information'
+        }),
+        ('Time Tracking', {
+            'fields': (
+                ('start_time', 'end_time'),
+                ('overtime_hours', 'overtime_type'),
+            ),
+            'description': 'Overtime period and hours calculation'
+        }),
+        ('Rate & Payment', {
+            'fields': (
+                ('hourly_rate', 'overtime_rate_multiplier'),
+                ('total_amount',),
+            ),
+            'description': 'Payment calculation details'
+        }),
+        ('Status & Approval', {
+            'fields': (
+                ('status', 'approved_by'),
+                ('approved_at',),
+            ),
+            'description': 'Approval workflow'
+        }),
+        ('Payment Status', {
+            'fields': (
+                ('is_paid', 'paid_date'),
+                ('remarks',),
+            ),
+            'classes': ('collapse',),
+            'description': 'Payment tracking and notes'
+        }),
+    )
+    
+    @display(description='Employee', ordering='user_id__first_name')
     def get_employee_name(self, obj):
         return obj.user_id.get_full_name()
-    get_employee_name.short_description = 'Employee'
 
 
 @admin.register(Notice)
@@ -342,6 +545,17 @@ class NoticeAdmin(ModelAdmin):
     search_fields = ('title', 'description')
     ordering = ('-published_date',)
     
+    fieldsets = (
+        ('Notice Information', {
+            'fields': (
+                ('title',),
+                ('priority', 'is_active'),
+                ('published_date', 'expiry_date'),
+                ('description',),
+            )
+        }),
+    )
+    
     formfield_overrides = {
         models.TextField: {"widget": WysiwygWidget},
     }
@@ -353,6 +567,16 @@ class LocationAdmin(ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'address')
     ordering = ('name',)
+    
+    fieldsets = (
+        ('Location Information', {
+            'fields': (
+                ('name', 'is_active'),
+                ('latitude', 'longitude', 'radius'),
+                ('address',),
+            )
+        }),
+    )
 
 
 @admin.register(UserLocation)
@@ -376,6 +600,16 @@ class RosterAdmin(ModelAdmin):
     list_filter = ('is_active', ('start_date', RangeDateFilter))
     search_fields = ('name', 'description')
     ordering = ('-start_date',)
+    
+    fieldsets = (
+        ('Roster Information', {
+            'fields': (
+                ('name', 'is_active'),
+                ('start_date', 'end_date'),
+                ('description',),
+            )
+        }),
+    )
 
 
 @admin.register(RosterAssignment)
