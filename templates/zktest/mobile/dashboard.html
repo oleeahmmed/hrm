@@ -129,13 +129,13 @@
                         <p>{{ log.punch_time|date:"h:i A" }}</p>
                     </div>
                 </div>
-                <!-- <div class="right">
-                    {% if log.is_processed %}
-                    <span class="badge badge-success">Processed</span>
+                <div class="right">
+                    {% if log.is_synced %}
+                    <span class="badge badge-success">Synced</span>
                     {% else %}
                     <span class="badge badge-warning">Pending</span>
                     {% endif %}
-                </div> -->
+                </div>
             </div>
             <!-- * item -->
             {% endfor %}

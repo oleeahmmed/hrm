@@ -1,68 +1,48 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from . import api_views
 
-# Create a router and register our viewsets with it
-router = DefaultRouter()
+app_name = 'zktest'
 
-# Basic models
-router.register(r'departments', api_views.DepartmentViewSet)
-router.register(r'designations', api_views.DesignationViewSet)
-router.register(r'shifts', api_views.ShiftViewSet)
-
-# Employee models
-router.register(r'employees', api_views.EmployeeViewSet)
-router.register(r'employee-personal-info', api_views.EmployeePersonalInfoViewSet)
-router.register(r'employee-education', api_views.EmployeeEducationViewSet)
-router.register(r'employee-salary', api_views.EmployeeSalaryViewSet)
-router.register(r'employee-skills', api_views.EmployeeSkillViewSet)
-
-# Attendance models
-router.register(r'attendance-logs', api_views.AttendanceLogViewSet)
-router.register(r'attendance', api_views.AttendanceViewSet)
-
-# Leave management
-router.register(r'leave-types', api_views.LeaveTypeViewSet)
-router.register(r'leave-balances', api_views.LeaveBalanceViewSet)
-router.register(r'leave-applications', api_views.LeaveApplicationViewSet)
-
-# Other models
-router.register(r'holidays', api_views.HolidayViewSet)
-router.register(r'overtime', api_views.OvertimeViewSet)
-router.register(r'notices', api_views.NoticeViewSet)
-router.register(r'locations', api_views.LocationViewSet)
-router.register(r'user-locations', api_views.UserLocationViewSet)
-router.register(r'rosters', api_views.RosterViewSet)
-router.register(r'roster-assignments', api_views.RosterAssignmentViewSet)
-router.register(r'roster-days', api_views.RosterDayViewSet)
-
-# The API URLs are now determined automatically by the router
 urlpatterns = [
-    # Router URLs
+    # ==========================================================================
+    # ADMS Protocol Endpoints (Device Communication)
+    # ==========================================================================
     
-    # ZKTeco device push endpoints (same as your previous API)
-    path('zk-push/', api_views.ZKTecoAttendancePushView.as_view(), name='zk-push'),
-    path('zk-cdata/', api_views.ZKTecoAttendancePushView.as_view(), name='zk-cdata'),
+    # Main ADMS endpoints
+    path('iclock/cdata', api_views.ADMSHandlerView.as_view(), name='adms_cdata'),
+    path('iclock/getrequest', api_views.ADMSHandlerView.as_view(), name='adms_getrequest'),
+    path('iclock/devicecmd', api_views.DeviceCommandAckView.as_view(), name='adms_devicecmd'),
     
-    # ZKTeco device endpoints (iclock protocol)
-    path('iclock/getrequest', api_views.ZKTecoAttendancePushView.as_view(), name='zk_getrequest'),
-    path('iclock/cdata', api_views.ZKTecoAttendancePushView.as_view(), name='zk_cdata'),
+    # Alternative paths (some devices use these)
+    path('cdata', api_views.ADMSHandlerView.as_view(), name='adms_cdata_alt'),
+    path('getrequest', api_views.ADMSHandlerView.as_view(), name='adms_getrequest_alt'),
+    path('devicecmd', api_views.DeviceCommandAckView.as_view(), name='adms_devicecmd_alt'),
     
-    # Custom API endpoints
-    path('employee/<str:user_id>/attendance-summary/', 
-         api_views.employee_attendance_summary, 
-         name='employee-attendance-summary'),
+    # Legacy ZKTeco paths
+    path('iclockpush/cdata', api_views.ADMSHandlerView.as_view(), name='adms_push_cdata'),
+    path('iclockpush/getrequest', api_views.ADMSHandlerView.as_view(), name='adms_push_getrequest'),
     
-    path('device/<str:device_sn>/logs/', 
-         api_views.attendance_logs_by_device, 
-         name='device-attendance-logs'),
+    # ==========================================================================
+    # REST API Endpoints
+    # ==========================================================================
     
-    path('process-attendance-logs/', 
-         api_views.process_attendance_logs, 
-         name='process-attendance-logs'),
+    # Health & Dashboard
+    path('api/health/', api_views.health_check, name='health_check'),
+    path('api/dashboard/', api_views.dashboard_stats, name='dashboard_stats'),
     
-    path('dashboard-stats/', 
-         api_views.dashboard_stats, 
-         name='dashboard-stats'),
+    # Devices
+    path('api/devices/', api_views.DeviceListView.as_view(), name='device_list'),
+    path('api/devices/<int:pk>/', api_views.DeviceDetailView.as_view(), name='device_detail'),
+    path('api/devices/<int:device_id>/commands/', api_views.DeviceCommandView.as_view(), name='device_commands'),
+    path('api/devices/<int:device_id>/users/', api_views.DeviceUsersView.as_view(), name='device_users'),
+    path('api/devices/<int:device_id>/sync-tcp/', api_views.DeviceTCPSyncView.as_view(), name='device_tcp_sync'),
+    # Bulk Operations
+    path('api/commands/bulk/', api_views.BulkCommandView.as_view(), name='bulk_commands'),
+    
+    # Attendance
+    path('api/attendance/', api_views.AttendanceListView.as_view(), name='attendance_list'),
+    path('api/attendance/report/', api_views.AttendanceReportView.as_view(), name='attendance_report'),
+    
+    # Operation Logs
+    path('api/operations/', api_views.OperationLogView.as_view(), name='operation_logs'),
 ]
-

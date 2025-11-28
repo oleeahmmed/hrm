@@ -50,32 +50,32 @@ class AttendanceLogReportView(View):
                 # Filter by employee's user_id (CharField)
                 logs = logs.filter(user_id=employee.user_id)
             if device_sn:
-                logs = logs.filter(device_sn__icontains=device_sn)
+                logs = logs.filter(device__serial_number__icontains=device_sn)
             if is_processed != '':
-                logs = logs.filter(is_processed=(is_processed == 'true'))
+                logs = logs.filter(is_synced=(is_processed == 'true'))
         
         # Calculate statistics
         total_logs = logs.count()
-        processed_logs = logs.filter(is_processed=True).count()
-        unprocessed_logs = logs.filter(is_processed=False).count()
+        processed_logs = logs.filter(is_synced=True).count()
+        unprocessed_logs = logs.filter(is_synced=False).count()
         
         # Get unique employees count
         unique_employees = logs.values('user_id').distinct().count()
         
         # Get unique devices count
-        unique_devices = logs.values('device_sn').distinct().count()
+        unique_devices = logs.values('device').distinct().count()
         
-        # Get logs by status
-        status_breakdown = {}
-        for status_val in logs.values_list('status', flat=True).distinct():
-            if status_val:
-                status_breakdown[status_val] = logs.filter(status=status_val).count()
+        # Get logs by punch type
+        punch_type_breakdown = {}
+        for punch_val in logs.values_list('punch_type', flat=True).distinct():
+            if punch_val is not None:
+                punch_type_breakdown[dict(AttendanceLog.PUNCH_TYPES).get(punch_val, 'Unknown')] = logs.filter(punch_type=punch_val).count()
         
         # Get logs by verify type
         verify_type_breakdown = {}
         for verify_val in logs.values_list('verify_type', flat=True).distinct():
-            if verify_val:
-                verify_type_breakdown[verify_val] = logs.filter(verify_type=verify_val).count()
+            if verify_val is not None:
+                verify_type_breakdown[dict(AttendanceLog.VERIFY_TYPES).get(verify_val, 'Unknown')] = logs.filter(verify_type=verify_val).count()
         
         # Processing rate
         processing_rate = 0
@@ -105,7 +105,7 @@ class AttendanceLogReportView(View):
             'unprocessed_logs': unprocessed_logs,
             'unique_employees': unique_employees,
             'unique_devices': unique_devices,
-            'status_breakdown': status_breakdown,
+            'punch_type_breakdown': punch_type_breakdown,
             'verify_type_breakdown': verify_type_breakdown,
             'processing_rate': processing_rate,
         }
@@ -346,8 +346,8 @@ class MobileDashboardView(View):
         # Get statistics
         total_logs = date_logs.count()
         unique_employees = date_logs.values('user_id').distinct().count()
-        processed_logs = date_logs.filter(is_processed=True).count()
-        unprocessed_logs = date_logs.filter(is_processed=False).count()
+        processed_logs = date_logs.filter(is_synced=True).count()
+        unprocessed_logs = date_logs.filter(is_synced=False).count()
         
         # Get employee lookup dictionary
         user_ids = [log.user_id for log in date_logs[:50]]  # Limit to 50 for mobile

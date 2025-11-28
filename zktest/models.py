@@ -151,6 +151,32 @@ class Employee(models.Model):
             except Shift.DoesNotExist:
                 return None
         return None
+    
+    def get_device_users(self):
+        """Get all device enrollments for this employee"""
+        # Import here to avoid circular import
+        return DeviceUser.objects.filter(user_id=self.user_id)
+    
+    def is_enrolled_in_device(self, device):
+        """Check if employee is enrolled in specific device"""
+        return DeviceUser.objects.filter(
+            user_id=self.user_id, 
+            device=device
+        ).exists()
+    
+    def get_attendance_logs(self, start_date=None, end_date=None):
+        """Get attendance logs for this employee"""
+        logs = AttendanceLog.objects.filter(user_id=self.user_id)
+        if start_date:
+            logs = logs.filter(punch_time__gte=start_date)
+        if end_date:
+            logs = logs.filter(punch_time__lte=end_date)
+        return logs
+    
+    def get_devices(self):
+        """Get all devices where this employee is enrolled"""
+        device_users = self.get_device_users()
+        return [du.device for du in device_users]
 
 
 # ==================== EMPLOYEE PERSONAL INFO MODEL ====================
@@ -638,34 +664,9 @@ class Overtime(models.Model):
         return None
 
 
-# ==================== ATTENDANCE LOG MODEL ====================
-
-class AttendanceLog(models.Model):
-    """ZKTeco device theke asha raw punch data"""
-    user_id = models.CharField(max_length=50, db_index=True)
-    punch_time = models.DateTimeField(db_index=True)
-    status = models.CharField(max_length=5, null=True, blank=True)
-    verify_type = models.CharField(max_length=5, null=True, blank=True)
-    work_code = models.CharField(max_length=10, null=True, blank=True)
-    device_sn = models.CharField(max_length=100)
-    raw_data = models.TextField()  # Complete raw data save
-    
-    # Processing er jonno
-    is_processed = models.BooleanField(default=False)
-    processed_at = models.DateTimeField(null=True, blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-punch_time']
-        indexes = [
-            models.Index(fields=['user_id', 'punch_time']),
-            models.Index(fields=['device_sn']),
-            models.Index(fields=['is_processed']),
-        ]
-
-    def __str__(self):
-        return f"{self.user_id} → {self.punch_time}"
+# ==================== OLD ATTENDANCE LOG MODEL - REMOVED ====================
+# This model has been replaced by the new AttendanceLog model below
+# which uses ForeignKey to ZKDevice instead of device_sn string
     
 
 
@@ -832,3 +833,491 @@ class RosterDay(models.Model):
             return Shift.objects.get(code=self.shift_code)
         except Shift.DoesNotExist:
             return None
+
+
+
+
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+
+
+# ==================== ZK DEVICE MODEL ====================
+
+class ZKDevice(models.Model):
+    """ZKTeco Device - supports both ADMS and PyZK (TCP) connection"""
+    
+    DEVICE_TYPES = (
+        ('attendance', _('Attendance Device')),
+        ('access', _('Access Control')),
+        ('multi', _('Multi-Function')),
+    )
+    
+    CONNECTION_TYPES = (
+        ('adms', _('ADMS (Push Protocol)')),
+        ('tcp', _('TCP/IP (PyZK)')),
+        ('both', _('Both ADMS + TCP')),
+    )
+    
+    # Basic Info
+    serial_number = models.CharField(_("Serial Number"), max_length=50, unique=True, db_index=True)
+    device_name = models.CharField(_("Device Name"), max_length=100, blank=True)
+    device_type = models.CharField(_("Device Type"), max_length=20, choices=DEVICE_TYPES, default='attendance')
+    
+    # Connection Type - ADMS or TCP (PyZK)
+    connection_type = models.CharField(
+        _("Connection Type"), 
+        max_length=20, 
+        choices=CONNECTION_TYPES, 
+        default='adms',
+        help_text=_("ADMS for push-based, TCP for old devices using PyZK")
+    )
+    
+    # Network Info
+    ip_address = models.GenericIPAddressField(_("IP Address"), null=True, blank=True)
+    port = models.IntegerField(_("Port"), default=4370, help_text=_("TCP port for PyZK connection"))
+    mac_address = models.CharField(_("MAC Address"), max_length=20, blank=True)
+    
+    # Device Details
+    firmware_version = models.CharField(_("Firmware Version"), max_length=50, blank=True)
+    platform = models.CharField(_("Platform"), max_length=50, blank=True)
+    push_version = models.CharField(_("Push Version"), max_length=20, blank=True)
+    oem_vendor = models.CharField(_("OEM Vendor"), max_length=50, blank=True)
+    
+    # Status
+    is_active = models.BooleanField(_("Active"), default=True)
+    is_online = models.BooleanField(_("Online"), default=False)
+    last_activity = models.DateTimeField(_("Last Activity"), null=True, blank=True)
+    registered_at = models.DateTimeField(_("Registered At"), auto_now_add=True)
+    
+    # Device Capabilities
+    user_count = models.IntegerField(_("User Count"), default=0)
+    fp_count = models.IntegerField(_("Fingerprint Count"), default=0)
+    face_count = models.IntegerField(_("Face Count"), default=0)
+    palm_count = models.IntegerField(_("Palm Count"), default=0)
+    transaction_count = models.IntegerField(_("Transaction Count"), default=0)
+    
+    # ADMS Settings
+    push_interval = models.IntegerField(_("Push Interval (sec)"), default=30)
+    heartbeat_interval = models.IntegerField(_("Heartbeat Interval (sec)"), default=60)
+    timezone_offset = models.IntegerField(_("Timezone Offset (min)"), default=360)
+    
+    # PyZK Settings
+    tcp_timeout = models.IntegerField(_("TCP Timeout (sec)"), default=5)
+    tcp_password = models.CharField(_("Device Password"), max_length=50, blank=True, help_text=_("Comm key for PyZK"))
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'zk_devices'
+        verbose_name = _('ZK Device')
+        verbose_name_plural = _('ZK Devices')
+        ordering = ['-last_activity']
+        
+    def __str__(self):
+        return f"{self.device_name or self.serial_number}"
+    
+    def update_activity(self):
+        self.last_activity = timezone.now()
+        self.is_online = True
+        self.save(update_fields=['last_activity', 'is_online'])
+    
+    def mark_offline(self):
+        self.is_online = False
+        self.save(update_fields=['is_online'])
+    
+    def supports_adms(self):
+        """Check if device supports ADMS protocol"""
+        return self.connection_type in ('adms', 'both')
+    
+    def supports_tcp(self):
+        """Check if device supports TCP/PyZK connection"""
+        return self.connection_type in ('tcp', 'both')
+
+
+# ==================== ATTENDANCE LOG MODEL ====================
+
+class AttendanceLog(models.Model):
+    """Attendance Records from device"""
+    
+    PUNCH_TYPES = (
+        (0, _('Check In')),
+        (1, _('Check Out')),
+        (2, _('Break Out')),
+        (3, _('Break In')),
+        (4, _('OT In')),
+        (5, _('OT Out')),
+        (255, _('Unknown')),
+    )
+    
+    VERIFY_TYPES = (
+        (0, _('Password')),
+        (1, _('Fingerprint')),
+        (2, _('Card')),
+        (4, _('Card + Fingerprint')),
+        (6, _('Card + Password')),
+        (8, _('Card + FP + Password')),
+        (15, _('Face')),
+        (20, _('Palm')),
+    )
+    
+    SOURCE_TYPES = (
+        ('adms', _('ADMS Push')),
+        ('tcp', _('TCP/PyZK Pull')),
+        ('manual', _('Manual Entry')),
+    )
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='attendance_logs',
+        verbose_name=_("Device")
+    )
+    user_id = models.CharField(_("User ID"), max_length=50, db_index=True)
+    punch_time = models.DateTimeField(_("Punch Time"), db_index=True)
+    punch_type = models.SmallIntegerField(_("Punch Type"), choices=PUNCH_TYPES, default=0)
+    verify_type = models.SmallIntegerField(_("Verify Type"), choices=VERIFY_TYPES, default=1)
+    work_code = models.CharField(_("Work Code"), max_length=20, blank=True)
+    
+    # Source tracking
+    source = models.CharField(_("Source"), max_length=20, choices=SOURCE_TYPES, default='adms')
+    
+    # Additional Info
+    temperature = models.DecimalField(_("Temperature"), max_digits=4, decimal_places=1, null=True, blank=True)
+    mask_status = models.SmallIntegerField(_("Mask Status"), default=0)
+    
+    raw_data = models.TextField(_("Raw Data"), blank=True)
+    
+    is_synced = models.BooleanField(_("Synced"), default=False)
+    synced_at = models.DateTimeField(_("Synced At"), null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'zk_attendance_logs'
+        verbose_name = _('Attendance Log')
+        verbose_name_plural = _('Attendance Logs')
+        unique_together = ['device', 'user_id', 'punch_time']
+        ordering = ['-punch_time']
+        indexes = [
+            models.Index(fields=['user_id', 'punch_time']),
+            models.Index(fields=['device', 'created_at']),
+            models.Index(fields=['punch_time']),
+            models.Index(fields=['is_synced']),
+        ]
+        
+    def __str__(self):
+        return f"{self.user_id} - {self.punch_time}"
+
+
+# ==================== DEVICE USER MODEL ====================
+
+class DeviceUser(models.Model):
+    """Device Registered Users"""
+    
+    PRIVILEGES = (
+        (0, _('User')),
+        (2, _('Enroller')),
+        (6, _('Admin')),
+        (14, _('Super Admin')),
+    )
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='users',
+        verbose_name=_("Device")
+    )
+    user_id = models.CharField(_("User ID"), max_length=50)
+    name = models.CharField(_("Name"), max_length=100, blank=True)
+    privilege = models.SmallIntegerField(_("Privilege"), choices=PRIVILEGES, default=0)
+    card_number = models.CharField(_("Card Number"), max_length=50, blank=True)
+    password = models.CharField(_("Password"), max_length=20, blank=True)
+    group = models.CharField(_("Group"), max_length=10, default='1')
+    
+    has_fingerprint = models.BooleanField(_("Has Fingerprint"), default=False)
+    has_face = models.BooleanField(_("Has Face"), default=False)
+    has_palm = models.BooleanField(_("Has Palm"), default=False)
+    fp_count = models.SmallIntegerField(_("Fingerprint Count"), default=0)
+    
+    is_active = models.BooleanField(_("Active"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'zk_device_users'
+        verbose_name = _('Device User')
+        verbose_name_plural = _('Device Users')
+        unique_together = ['device', 'user_id']
+        ordering = ['device', 'user_id']
+        
+    def __str__(self):
+        return f"{self.name or self.user_id}"
+    
+    def get_employee(self):
+        """Get employee record for this device user"""
+        try:
+            return Employee.objects.get(user_id=self.user_id)
+        except Employee.DoesNotExist:
+            return None
+    
+    def create_employee_if_not_exists(self):
+        """Auto-create employee record if doesn't exist"""
+        if not self.get_employee():
+            names = self.name.split(' ', 1) if self.name else ['', '']
+            employee = Employee.objects.create(
+                user_id=self.user_id,
+                employee_id=self.user_id,
+                first_name=names[0],
+                last_name=names[1] if len(names) > 1 else '',
+                is_active=self.is_active
+            )
+            return employee
+        return None
+
+# ==================== DEVICE COMMAND MODEL ====================
+
+class DeviceCommand(models.Model):
+    """Device Commands - for ADMS protocol"""
+    
+    COMMAND_TYPES = (
+        ('REBOOT', _('Reboot Device')),
+        ('CLEAR_LOG', _('Clear Attendance Log')),
+        ('CLEAR_DATA', _('Clear All Data')),
+        ('CLEAR_PHOTO', _('Clear Photos')),
+        ('UPDATE_TIME', _('Sync Time')),
+        ('INFO', _('Get Device Info')),
+        ('CHECK', _('Health Check')),
+        ('SET_USER', _('Add/Update User')),
+        ('DEL_USER', _('Delete User')),
+        ('ENROLL_FP', _('Enroll Fingerprint')),
+        ('ENROLL_FACE', _('Enroll Face')),
+        ('GET_USERS', _('Get All Users')),
+        ('GET_LOGS', _('Get All Logs')),
+        ('SET_OPTION', _('Set Device Option')),
+    )
+    
+    STATUS_CHOICES = (
+        ('pending', _('Pending')),
+        ('sent', _('Sent')),
+        ('executed', _('Executed')),
+        ('failed', _('Failed')),
+        ('timeout', _('Timeout')),
+    )
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='commands',
+        verbose_name=_("Device")
+    )
+    command_type = models.CharField(_("Command Type"), max_length=20, choices=COMMAND_TYPES)
+    command_content = models.TextField(_("Command Content"), blank=True)
+    command_id = models.CharField(_("Command ID"), max_length=50, blank=True, db_index=True)
+    
+    status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default='pending')
+    response = models.TextField(_("Response"), blank=True)
+    return_value = models.IntegerField(_("Return Value"), null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(_("Sent At"), null=True, blank=True)
+    executed_at = models.DateTimeField(_("Executed At"), null=True, blank=True)
+    
+    class Meta:
+        db_table = 'zk_device_commands'
+        verbose_name = _('Device Command')
+        verbose_name_plural = _('Device Commands')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['device', 'status']),
+            models.Index(fields=['command_id']),
+        ]
+        
+    def __str__(self):
+        return f"{self.device} - {self.command_type}"
+
+
+# ==================== OPERATION LOG MODEL ====================
+
+class OperationLog(models.Model):
+    """Device Operation Logs"""
+    
+    OPERATION_TYPES = (
+        ('ENROLL', _('Enroll User')),
+        ('DELETE', _('Delete User')),
+        ('UPDATE', _('Update User')),
+        ('ADMIN_LOGIN', _('Admin Login')),
+        ('ADMIN_LOGOUT', _('Admin Logout')),
+        ('CLEAR', _('Clear Data')),
+        ('REBOOT', _('Reboot')),
+        ('OTHER', _('Other')),
+    )
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='operation_logs',
+        verbose_name=_("Device")
+    )
+    operation_type = models.CharField(_("Operation Type"), max_length=50, choices=OPERATION_TYPES, default='OTHER')
+    admin_id = models.CharField(_("Admin ID"), max_length=50, blank=True)
+    user_id = models.CharField(_("User ID"), max_length=50, blank=True)
+    operation_time = models.DateTimeField(_("Operation Time"))
+    
+    details = models.TextField(_("Details"), blank=True)
+    raw_data = models.TextField(_("Raw Data"), blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'zk_operation_logs'
+        verbose_name = _('Operation Log')
+        verbose_name_plural = _('Operation Logs')
+        ordering = ['-operation_time']
+        indexes = [
+            models.Index(fields=['device', 'operation_time']),
+        ]
+        
+    def __str__(self):
+        return f"{self.device} - {self.operation_type} - {self.operation_time}"
+
+
+# ==================== DEVICE HEARTBEAT MODEL ====================
+
+class DeviceHeartbeat(models.Model):
+    """Device Heartbeat Records"""
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='heartbeats',
+        verbose_name=_("Device")
+    )
+    heartbeat_time = models.DateTimeField(_("Heartbeat Time"), auto_now_add=True)
+    ip_address = models.GenericIPAddressField(_("IP Address"), null=True, blank=True)
+    
+    user_count = models.IntegerField(_("User Count"), default=0)
+    fp_count = models.IntegerField(_("Fingerprint Count"), default=0)
+    face_count = models.IntegerField(_("Face Count"), default=0)
+    log_count = models.IntegerField(_("Log Count"), default=0)
+    
+    class Meta:
+        db_table = 'zk_device_heartbeats'
+        verbose_name = _('Device Heartbeat')
+        verbose_name_plural = _('Device Heartbeats')
+        ordering = ['-heartbeat_time']
+        indexes = [
+            models.Index(fields=['device', 'heartbeat_time']),
+        ]
+        
+    def __str__(self):
+        return f"{self.device} - {self.heartbeat_time}"
+
+
+# ==================== FINGERPRINT TEMPLATE MODEL ====================
+
+class FingerprintTemplate(models.Model):
+    """Fingerprint Template Storage"""
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='fingerprints',
+        verbose_name=_("Device")
+    )
+    user_id = models.CharField(_("User ID"), max_length=50, db_index=True)
+    finger_index = models.SmallIntegerField(_("Finger Index"), default=0)
+    template_data = models.BinaryField(_("Template Data"), null=True, blank=True)
+    template_size = models.IntegerField(_("Template Size"), default=0)
+    template_flag = models.SmallIntegerField(_("Template Flag"), default=1)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'zk_fingerprint_templates'
+        verbose_name = _('Fingerprint Template')
+        verbose_name_plural = _('Fingerprint Templates')
+        unique_together = ['device', 'user_id', 'finger_index']
+        ordering = ['device', 'user_id', 'finger_index']
+        
+    def __str__(self):
+        return f"{self.user_id} - Finger {self.finger_index}"
+
+
+# ==================== FACE TEMPLATE MODEL ====================
+
+class FaceTemplate(models.Model):
+    """Face Template Storage"""
+    
+    device = models.ForeignKey(
+        ZKDevice, 
+        on_delete=models.CASCADE, 
+        related_name='faces',
+        verbose_name=_("Device")
+    )
+    user_id = models.CharField(_("User ID"), max_length=50, db_index=True)
+    face_index = models.SmallIntegerField(_("Face Index"), default=0)
+    template_data = models.BinaryField(_("Template Data"), null=True, blank=True)
+    template_size = models.IntegerField(_("Template Size"), default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'zk_face_templates'
+        verbose_name = _('Face Template')
+        verbose_name_plural = _('Face Templates')
+        unique_together = ['device', 'user_id', 'face_index']
+        ordering = ['device', 'user_id']
+        
+    def __str__(self):
+        return f"{self.user_id} - Face {self.face_index}"
+
+
+# ==================== TCP SYNC LOG MODEL ====================
+
+class TCPSyncLog(models.Model):
+    """Log for TCP/PyZK sync operations"""
+    
+    SYNC_TYPES = (
+        ('users', _('Users')),
+        ('attendance', _('Attendance')),
+        ('fingerprints', _('Fingerprints')),
+        ('faces', _('Faces')),
+        ('all', _('All Data')),
+    )
+    
+    STATUS_CHOICES = (
+        ('pending', _('Pending')),
+        ('running', _('Running')),
+        ('completed', _('Completed')),
+        ('failed', _('Failed')),
+    )
+    
+    device = models.ForeignKey(
+        ZKDevice,
+        on_delete=models.CASCADE,
+        related_name='tcp_sync_logs',
+        verbose_name=_("Device")
+    )
+    sync_type = models.CharField(_("Sync Type"), max_length=20, choices=SYNC_TYPES)
+    status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    records_found = models.IntegerField(_("Records Found"), default=0)
+    records_synced = models.IntegerField(_("Records Synced"), default=0)
+    records_failed = models.IntegerField(_("Records Failed"), default=0)
+    
+    error_message = models.TextField(_("Error Message"), blank=True)
+    
+    started_at = models.DateTimeField(_("Started At"), null=True, blank=True)
+    completed_at = models.DateTimeField(_("Completed At"), null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'zk_tcp_sync_logs'
+        verbose_name = _('TCP Sync Log')
+        verbose_name_plural = _('TCP Sync Logs')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.device} - {self.sync_type} - {self.status}"

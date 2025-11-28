@@ -24,9 +24,8 @@ urlpatterns = [
     path('admin/hr/', include('hr.urls')),
     path('admin/zktest/', include('zktest.urls')),
     path('admin/', admin.site.urls),
-    path('', include('zktest.api.urls')),
-    path('', include('zktest.urls')),
-
+    path('api/', include('zktest.api.urls')),
+    path('', include('zktest.urls')),  # For mobile views at /mobile/
 ]
 
 if settings.DEBUG:

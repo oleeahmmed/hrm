@@ -1,443 +1,1020 @@
-from rest_framework import generics, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework.views import APIView
+import logging
+import base64
+from datetime import datetime, timedelta
+from django.utils import timezone
 from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from datetime import datetime
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
+from django.db import IntegrityError
+from django.db.models import Count, Min, Max, Q
+from django.db.models.functions import TruncDate
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
 
-from ..models import (
-    Department, Designation, Shift, Employee, EmployeePersonalInfo,
-    EmployeeEducation, EmployeeSalary, EmployeeSkill, AttendanceLog,
-    Attendance, LeaveType, LeaveBalance, LeaveApplication, Holiday,
-    Overtime, Notice, Location, UserLocation, Roster, RosterAssignment,
-    RosterDay
+from zktest.models import (
+    ZKDevice, AttendanceLog, DeviceUser, 
+    DeviceCommand, OperationLog, DeviceHeartbeat,
+    FingerprintTemplate, FaceTemplate
 )
-
 from .serializers import (
-    DepartmentSerializer, DesignationSerializer, ShiftSerializer,
-    EmployeeSerializer, EmployeePersonalInfoSerializer, EmployeeEducationSerializer,
-    EmployeeSalarySerializer, EmployeeSkillSerializer, AttendanceLogSerializer,
-    AttendanceLogCreateSerializer, AttendanceSerializer, LeaveTypeSerializer,
-    LeaveBalanceSerializer, LeaveApplicationSerializer, HolidaySerializer,
-    OvertimeSerializer, NoticeSerializer, LocationSerializer,
-    UserLocationSerializer, RosterSerializer, RosterAssignmentSerializer,
-    RosterDaySerializer, ZKTecoAttendanceSerializer, ZKTecoPostDataSerializer,ZKTecoUserDataSerializer
+    ZKDeviceSerializer, ZKDeviceListSerializer, ZKDeviceCreateSerializer,
+    AttendanceLogSerializer, DeviceUserSerializer,
+    DeviceCommandSerializer, OperationLogSerializer,
+    DeviceHeartbeatSerializer, FingerprintTemplateSerializer, FaceTemplateSerializer
 )
+from zktest.utils import (
+    sync_users_from_device_tcp,
+    sync_attendance_from_device_tcp,
+    sync_all_from_device_tcp,
+    execute_tcp_command
+)
+logger = logging.getLogger(__name__)
 
 
-# ==================== BASIC MODELS VIEWSETS ====================
+# =============================================================================
+# ADMS Protocol Handler - Main Endpoint
+# =============================================================================
 
-class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'code']
-    search_fields = ['name', 'code', 'description']
-    ordering_fields = ['name', 'code', 'created_at']
-    ordering = ['name']
-
-
-class DesignationViewSet(viewsets.ModelViewSet):
-    queryset = Designation.objects.all()
-    serializer_class = DesignationSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'level']
-    search_fields = ['name', 'code', 'description']
-    ordering_fields = ['name', 'level', 'created_at']
-    ordering = ['level', 'name']
-
-
-class ShiftViewSet(viewsets.ModelViewSet):
-    queryset = Shift.objects.all()
-    serializer_class = ShiftSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'is_night_shift']
-    search_fields = ['name', 'code']
-    ordering_fields = ['name', 'start_time', 'created_at']
-    ordering = ['start_time']
-
-
-# ==================== EMPLOYEE VIEWSETS ====================
-
-class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
-    serializer_class = EmployeeSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'employment_status', 'department_code', 'designation_code']
-    search_fields = ['user_id', 'employee_id', 'first_name', 'last_name', 'email']
-    ordering_fields = ['employee_id', 'first_name', 'joining_date', 'created_at']
-    ordering = ['employee_id']
-
-
-class EmployeePersonalInfoViewSet(viewsets.ModelViewSet):
-    queryset = EmployeePersonalInfo.objects.all()
-    serializer_class = EmployeePersonalInfoSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['gender', 'marital_status', 'blood_group']
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'nid', 'passport_no']
-
-
-class EmployeeEducationViewSet(viewsets.ModelViewSet):
-    queryset = EmployeeEducation.objects.all()
-    serializer_class = EmployeeEducationSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['education_level', 'passing_year']
-    search_fields = ['degree_title', 'institution', 'user_id__first_name']
-    ordering_fields = ['passing_year', 'created_at']
-    ordering = ['-passing_year']
-
-
-class EmployeeSalaryViewSet(viewsets.ModelViewSet):
-    queryset = EmployeeSalary.objects.all()
-    serializer_class = EmployeeSalarySerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'bank_name']
-
-
-class EmployeeSkillViewSet(viewsets.ModelViewSet):
-    queryset = EmployeeSkill.objects.all()
-    serializer_class = EmployeeSkillSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['skill_level', 'years_of_experience']
-    search_fields = ['skill_name', 'user_id__first_name', 'user_id__last_name']
-    ordering_fields = ['skill_name', 'years_of_experience', 'created_at']
-    ordering = ['skill_name']
-
-
-# ==================== ATTENDANCE VIEWSETS ====================
-
-class AttendanceLogViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceLog.objects.all()
-    serializer_class = AttendanceLogSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'device_sn', 'status', 'is_processed']
-    search_fields = ['user_id', 'device_sn']
-    ordering_fields = ['punch_time', 'created_at']
-    ordering = ['-punch_time']
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return AttendanceLogCreateSerializer
-        return AttendanceLogSerializer
-
-
-class AttendanceViewSet(viewsets.ModelViewSet):
-    queryset = Attendance.objects.all()
-    serializer_class = AttendanceSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'date', 'status', 'shift_code']
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'user_id__employee_id']
-    ordering_fields = ['date', 'created_at']
-    ordering = ['-date']
-
-
-# ==================== LEAVE MANAGEMENT VIEWSETS ====================
-
-class LeaveTypeViewSet(viewsets.ModelViewSet):
-    queryset = LeaveType.objects.all()
-    serializer_class = LeaveTypeSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['is_active', 'paid', 'requires_approval']
-    search_fields = ['name', 'code']
-    ordering = ['name']
-
-
-class LeaveBalanceViewSet(viewsets.ModelViewSet):
-    queryset = LeaveBalance.objects.all()
-    serializer_class = LeaveBalanceSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'leave_type_code', 'year']
-    search_fields = ['user_id__first_name', 'user_id__last_name']
-    ordering_fields = ['year', 'created_at']
-    ordering = ['-year']
-
-
-class LeaveApplicationViewSet(viewsets.ModelViewSet):
-    queryset = LeaveApplication.objects.all()
-    serializer_class = LeaveApplicationSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'leave_type_code', 'status', 'start_date']
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'reason']
-    ordering_fields = ['start_date', 'created_at']
-    ordering = ['-start_date']
-
-
-# ==================== OTHER VIEWSETS ====================
-
-class HolidayViewSet(viewsets.ModelViewSet):
-    queryset = Holiday.objects.all()
-    serializer_class = HolidaySerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_optional', 'date']
-    search_fields = ['name', 'description']
-    ordering_fields = ['date', 'created_at']
-    ordering = ['-date']
-
-
-class OvertimeViewSet(viewsets.ModelViewSet):
-    queryset = Overtime.objects.all()
-    serializer_class = OvertimeSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'date', 'status', 'overtime_type']
-    search_fields = ['user_id__first_name', 'user_id__last_name']
-    ordering_fields = ['date', 'created_at']
-    ordering = ['-date']
-
-
-class NoticeViewSet(viewsets.ModelViewSet):
-    queryset = Notice.objects.all()
-    serializer_class = NoticeSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'priority', 'published_date']
-    search_fields = ['title', 'description']
-    ordering_fields = ['published_date', 'priority', 'created_at']
-    ordering = ['-published_date']
-
-
-class LocationViewSet(viewsets.ModelViewSet):
-    queryset = Location.objects.all()
-    serializer_class = LocationSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['is_active']
-    search_fields = ['name', 'address']
-    ordering = ['name']
-
-
-class UserLocationViewSet(viewsets.ModelViewSet):
-    queryset = UserLocation.objects.all()
-    serializer_class = UserLocationSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['user_id', 'location', 'is_primary']
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'location__name']
-
-
-class RosterViewSet(viewsets.ModelViewSet):
-    queryset = Roster.objects.all()
-    serializer_class = RosterSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'start_date', 'end_date']
-    search_fields = ['name', 'description']
-    ordering_fields = ['start_date', 'created_at']
-    ordering = ['-start_date']
-
-
-class RosterAssignmentViewSet(viewsets.ModelViewSet):
-    queryset = RosterAssignment.objects.all()
-    serializer_class = RosterAssignmentSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['roster', 'user_id', 'shift_code']
-    search_fields = ['user_id__first_name', 'user_id__last_name', 'roster__name']
-
-
-class RosterDayViewSet(viewsets.ModelViewSet):
-    queryset = RosterDay.objects.all()
-    serializer_class = RosterDaySerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['user_id', 'date', 'shift_code', 'is_off']
-    search_fields = ['user_id__first_name', 'user_id__last_name']
-    ordering_fields = ['date', 'created_at']
-    ordering = ['date']
-
-
-# ==================== ZKTECO DEVICE PUSH API VIEWS ====================
-@method_decorator(csrf_exempt, name='dispatch')
-class ZKTecoAttendancePushView(APIView):
+class ADMSHandlerView(APIView):
     """
-    ZKTeco device data push endpoint
+    ZKTeco ADMS/iclock Protocol Handler
     
-    Handles:
-    - ATTLOG (attendance logs)
-    - USER (user list sync)
-    
-    Endpoints:
-    - GET /iclock/getrequest - Single attendance log
-    - POST /iclock/cdata?table=ATTLOG - Bulk attendance logs
-    - POST /iclock/cdata?table=USER - User list sync
+    Handles all ADMS device communication:
+    - GET /iclock/cdata - Device handshake & get commands
+    - POST /iclock/cdata - Attendance push, User sync, Operation logs
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
-        """Handle GET request - Single attendance log"""
+        """Device Handshake & Command Retrieval"""
         sn = request.GET.get('SN', '')
-        attlog = request.GET.get('ATTLOG', '')
         
-        if attlog:
-            serializer = ZKTecoAttendanceSerializer(data={
-                'SN': sn,
-                'ATTLOG': attlog
-            })
-            
-            if serializer.is_valid():
-                attendance_log = serializer.save()
-                if attendance_log:
-                    return HttpResponse("OK")
-                else:
-                    return HttpResponse("ERROR: Failed to create attendance log", status=400)
-            else:
-                return HttpResponse(f"ERROR: {serializer.errors}", status=400)
+        if not sn:
+            return HttpResponse('ERROR: No SN', content_type='text/plain')
         
-        return HttpResponse("OK")
+        device = self._get_or_create_device(request, sn)
+        
+        # Record heartbeat
+        self._record_heartbeat(request, device)
+        
+        # Check for pending commands
+        pending_command = self._get_pending_command(device)
+        
+        if pending_command:
+            return self._format_command_response(pending_command)
+        
+        # Standard OK response with settings
+        response_lines = [
+            f'GET OPTION FROM: {sn}',
+            f'Stamp={int(datetime.now().timestamp())}',
+            f'OpStamp={int(datetime.now().timestamp())}',
+            'PhotoStamp=0',
+            'ErrorDelay=60',
+            'Delay=30',
+            'TransTimes=00:00;23:59',
+            'TransInterval=1',
+            'TransFlag=TransData AttLog OpLog EnrollUser EnrollFP UserPic Face',
+            'Realtime=1',
+            'Encrypt=0',
+            'ServerVer=2.4.1',
+            'PushProtVer=2.4.1',
+        ]
+        
+        return HttpResponse('\r\n'.join(response_lines), content_type='text/plain')
     
     def post(self, request):
-        """Handle POST request - Bulk data (ATTLOG or USER)"""
+        """Data Push Handler"""
         sn = request.GET.get('SN', '')
-        table = request.GET.get('table', '')
+        table = request.GET.get('table', '').upper()
         
-        # Get POST body data
-        body = request.body.decode('utf-8', errors='ignore')
+        if not sn:
+            return HttpResponse('ERROR: No SN', content_type='text/plain')
         
-        if not body:
-            return HttpResponse("OK")
+        device = self._get_or_create_device(request, sn)
         
-        # Process based on table type
-        if table == 'ATTLOG':
-            serializer = ZKTecoPostDataSerializer(data={
-                'body_data': body,
-                'device_sn': sn
-            })
-            
-            if serializer.is_valid():
-                created_logs = serializer.save()
-                print(f"Device {sn}: Created {len(created_logs)} attendance logs")
-                return HttpResponse("OK")
-            else:
-                print(f"ATTLOG Error: {serializer.errors}")
-                return HttpResponse(f"ERROR: {serializer.errors}", status=400)
+        # Update device activity
+        device.update_activity()
         
-        elif table == 'USER':
-            serializer = ZKTecoUserDataSerializer(data={
-                'body_data': body,
-                'device_sn': sn
-            })
-            
-            if serializer.is_valid():
-                result = serializer.save()
-                created_count = len(result['created'])
-                updated_count = len(result['updated'])
-                print(f"Device {sn}: User sync - {created_count} created, {updated_count} updated")
-                return HttpResponse("OK")
-            else:
-                print(f"USER Error: {serializer.errors}")
-                return HttpResponse(f"ERROR: {serializer.errors}", status=400)
+        handlers = {
+            'ATTLOG': self._handle_attendance,
+            'OPERLOG': self._handle_operation_log,
+            'USER': self._handle_user_sync,
+            'USERINFO': self._handle_user_sync,
+            'FINGERTMP': self._handle_fingerprint,
+            'TEMPLATEV10': self._handle_fingerprint,
+            'FACE': self._handle_face,
+            'BIODATA': self._handle_biodata,
+            'USERPIC': self._handle_user_photo,
+            'FIRSTDATA': self._handle_first_data,
+            'ATTPHOTO': self._handle_attendance_photo,
+            'OPTIONS': self._handle_options,
+        }
         
-        # Unknown table type
-        print(f"Unknown table type: {table}")
-        return HttpResponse("OK")
-
-
-# ==================== CUSTOM API VIEWS ====================
-
-@api_view(['GET'])
-def employee_attendance_summary(request, user_id):
-    """Get attendance summary for a specific employee"""
-    try:
-        employee = Employee.objects.get(user_id=user_id)
-        attendances = Attendance.objects.filter(user_id=employee).order_by('-date')[:30]
-        
-        serializer = AttendanceSerializer(attendances, many=True)
-        return Response({
-            'employee': EmployeeSerializer(employee).data,
-            'recent_attendances': serializer.data
-        })
-    except Employee.DoesNotExist:
-        return Response({'error': 'Employee not found'}, status=404)
-
-
-@api_view(['GET'])
-def attendance_logs_by_device(request, device_sn):
-    """Get attendance logs for a specific device"""
-    logs = AttendanceLog.objects.filter(device_sn=device_sn).order_by('-punch_time')[:100]
-    serializer = AttendanceLogSerializer(logs, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['POST'])
-def process_attendance_logs(request):
-    """Process unprocessed attendance logs into daily attendance records"""
-    unprocessed_logs = AttendanceLog.objects.filter(is_processed=False)
-    processed_count = 0
-    
-    # Group logs by user_id and date
-    from collections import defaultdict
-    grouped_logs = defaultdict(list)
-    
-    for log in unprocessed_logs:
-        date_key = f"{log.user_id}_{log.punch_time.date()}"
-        grouped_logs[date_key].append(log)
-    
-    # Process each group
-    for date_key, logs in grouped_logs.items():
-        user_id, date_str = date_key.split('_', 1)
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        handler = handlers.get(table, self._handle_unknown)
         
         try:
-            employee = Employee.objects.get(user_id=user_id)
-            
-            # Get or create attendance record
-            attendance, created = Attendance.objects.get_or_create(
-                user_id=employee,
-                date=date,
-                defaults={
-                    'status': 'present',
-                    'shift_code': employee.shift_code or '',
-                }
-            )
-            
-            # Update check-in and check-out times
-            logs.sort(key=lambda x: x.punch_time)
-            if logs:
-                attendance.check_in_time = logs[0].punch_time
-                if len(logs) > 1:
-                    attendance.check_out_time = logs[-1].punch_time
-                
-                # Calculate work hours (basic calculation)
-                if attendance.check_in_time and attendance.check_out_time:
-                    work_duration = attendance.check_out_time - attendance.check_in_time
-                    attendance.work_hours = work_duration.total_seconds() / 3600
-                
-                attendance.processed_from_logs = True
-                attendance.last_processed_at = datetime.now()
-                attendance.save()
-            
-            # Mark logs as processed
-            for log in logs:
-                log.is_processed = True
-                log.processed_at = datetime.now()
-                log.save()
-            
-            processed_count += 1
-            
-        except Employee.DoesNotExist:
-            continue
+            result = handler(request, device)
+            logger.info(f"[ADMS] {sn} - {table}: {result}")
+            return HttpResponse('OK', content_type='text/plain')
+        except Exception as e:
+            logger.error(f"[ADMS] {sn} - {table} Error: {str(e)}")
+            return HttpResponse('OK', content_type='text/plain')
     
+    def _get_or_create_device(self, request, sn):
+        """Get or register device"""
+        client_ip = self._get_client_ip(request)
+        
+        defaults = {
+            'ip_address': client_ip,
+            'last_activity': timezone.now(),
+            'is_online': True,
+            'push_version': request.GET.get('pushver', ''),
+            'firmware_version': request.GET.get('Ver', ''),
+        }
+        
+        # Parse additional device info from request
+        options = request.GET.get('options', '')
+        if options:
+            self._parse_device_options(options, defaults)
+        
+        device, created = ZKDevice.objects.update_or_create(
+            serial_number=sn,
+            defaults=defaults
+        )
+        
+        if created:
+            logger.info(f"[ADMS] New device registered: {sn} from {client_ip}")
+        
+        return device
+    
+    def _parse_device_options(self, options, defaults):
+        """Parse device options string"""
+        try:
+            parts = options.split(',')
+            for part in parts:
+                if '=' in part:
+                    key, value = part.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    if key == 'UserCount':
+                        defaults['user_count'] = int(value)
+                    elif key == 'FPCount':
+                        defaults['fp_count'] = int(value)
+                    elif key == 'FaceCount':
+                        defaults['face_count'] = int(value)
+                    elif key == 'AttLogCount':
+                        defaults['transaction_count'] = int(value)
+                    elif key == 'Platform':
+                        defaults['platform'] = value
+                    elif key == 'OEMVendor':
+                        defaults['oem_vendor'] = value
+        except Exception as e:
+            logger.warning(f"Error parsing device options: {e}")
+    
+    def _get_client_ip(self, request):
+        """Get client IP address"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+    
+    def _record_heartbeat(self, request, device):
+        """Record device heartbeat"""
+        try:
+            DeviceHeartbeat.objects.create(
+                device=device,
+                ip_address=self._get_client_ip(request),
+                user_count=device.user_count,
+                fp_count=device.fp_count,
+                face_count=device.face_count,
+                log_count=device.transaction_count,
+            )
+        except Exception as e:
+            logger.warning(f"Error recording heartbeat: {e}")
+    
+    def _get_pending_command(self, device):
+        """Get pending command"""
+        return DeviceCommand.objects.filter(
+            device=device,
+            status='pending'
+        ).order_by('created_at').first()
+    
+    def _format_command_response(self, command):
+        """Format command for device"""
+        command_map = {
+            'REBOOT': f'C:{command.id}:REBOOT',
+            'CLEAR_LOG': f'C:{command.id}:CLEAR LOG',
+            'CLEAR_DATA': f'C:{command.id}:CLEAR DATA',
+            'UPDATE_TIME': f'C:{command.id}:SET DATETIME {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            'INFO': f'C:{command.id}:INFO',
+            'CHECK': f'C:{command.id}:CHECK',
+            'GET_USERS': f'C:{command.id}:DATA QUERY USERINFO',
+            'GET_LOGS': f'C:{command.id}:DATA QUERY ATTLOG',
+            'SET_USER': f'C:{command.id}:DATA UPDATE USERINFO {command.command_content}',
+            'DEL_USER': f'C:{command.id}:DATA DELETE USERINFO {command.command_content}',
+        }
+        
+        cmd_str = command_map.get(
+            command.command_type, 
+            f'C:{command.id}:{command.command_content}'
+        )
+        
+        command.status = 'sent'
+        command.sent_at = timezone.now()
+        command.command_id = str(command.id)
+        command.save()
+        
+        return HttpResponse(cmd_str, content_type='text/plain')
+    
+    def _handle_attendance(self, request, device):
+        """Process attendance data"""
+        body = request.body.decode('utf-8', errors='ignore')
+        records_saved = 0
+        
+        for line in body.strip().split('\n'):
+            if not line.strip():
+                continue
+            
+            try:
+                data = self._parse_attendance_line(line)
+                if data:
+                    AttendanceLog.objects.update_or_create(
+                        device=device,
+                        user_id=data['user_id'],
+                        punch_time=data['punch_time'],
+                        defaults={
+                            'punch_type': data.get('punch_type', 0),
+                            'verify_type': data.get('verify_type', 1),
+                            'work_code': data.get('work_code', ''),
+                            'temperature': data.get('temperature'),
+                            'mask_status': data.get('mask_status', 0),
+                            'raw_data': line,
+                        }
+                    )
+                    records_saved += 1
+            except IntegrityError:
+                continue
+            except Exception as e:
+                logger.warning(f"Parse error: {line} - {str(e)}")
+        
+        # Update device transaction count
+        device.transaction_count = device.attendance_logs.count()
+        device.save(update_fields=['transaction_count'])
+        
+        return f"Saved {records_saved} attendance records"
+    
+    def _parse_attendance_line(self, line):
+        """Parse attendance line - multiple formats supported"""
+        parts = line.strip().split('\t')
+        
+        if len(parts) < 2:
+            parts = line.strip().split()
+        
+        if len(parts) < 2:
+            return None
+        
+        # Parse datetime
+        time_str = parts[1]
+        punch_time = None
+        
+        for fmt in ['%Y-%m-%d %H:%M:%S', '%Y/%m/%d %H:%M:%S', '%d/%m/%Y %H:%M:%S']:
+            try:
+                punch_time = datetime.strptime(time_str, fmt)
+                break
+            except ValueError:
+                continue
+        
+        if not punch_time and len(parts) >= 3:
+            try:
+                punch_time = datetime.strptime(f"{parts[1]} {parts[2]}", '%Y-%m-%d %H:%M:%S')
+                parts = [parts[0], f"{parts[1]} {parts[2]}"] + parts[3:]
+            except ValueError:
+                pass
+        
+        if not punch_time:
+            return None
+        
+        result = {
+            'user_id': parts[0].strip(),
+            'punch_time': punch_time,
+            'punch_type': int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+            'verify_type': int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 1,
+            'work_code': parts[4] if len(parts) > 4 else '',
+        }
+        
+        # Temperature (if available)
+        if len(parts) > 6:
+            try:
+                temp = float(parts[6])
+                if 30 < temp < 45:
+                    result['temperature'] = temp
+            except:
+                pass
+        
+        return result
+    
+    def _handle_operation_log(self, request, device):
+        """Process operation logs"""
+        body = request.body.decode('utf-8', errors='ignore')
+        count = 0
+        
+        for line in body.strip().split('\n'):
+            if not line.strip():
+                continue
+            
+            try:
+                parts = line.strip().split('\t')
+                if len(parts) >= 3:
+                    op_time = timezone.now()
+                    try:
+                        op_time = datetime.strptime(parts[2], '%Y-%m-%d %H:%M:%S')
+                    except:
+                        pass
+                    
+                    # Map operation type
+                    op_type_map = {
+                        '0': 'OTHER',
+                        '1': 'ENROLL',
+                        '2': 'DELETE',
+                        '3': 'UPDATE',
+                        '4': 'ADMIN_LOGIN',
+                        '5': 'ADMIN_LOGOUT',
+                        '6': 'CLEAR',
+                        '7': 'REBOOT',
+                    }
+                    op_type = op_type_map.get(parts[0], 'OTHER')
+                    
+                    OperationLog.objects.create(
+                        device=device,
+                        operation_type=op_type,
+                        admin_id=parts[1] if len(parts) > 1 else '',
+                        operation_time=op_time,
+                        user_id=parts[3] if len(parts) > 3 else '',
+                        raw_data=line,
+                    )
+                    count += 1
+            except Exception as e:
+                logger.warning(f"OpLog parse error: {line} - {str(e)}")
+        
+        return f"Saved {count} operation logs"
+    
+
+    def _handle_user_sync(self, request, device):
+        """Sync user data from device"""
+        body = request.body.decode('utf-8', errors='ignore')
+        
+        # <CHANGE> Debug: Log raw data to see what device is sending
+        logger.info(f"[ADMS USER DEBUG] Device: {device.serial_number}")
+        logger.info(f"[ADMS USER DEBUG] Raw body length: {len(body)}")
+        logger.info(f"[ADMS USER DEBUG] Raw body: {body[:500]}")  # First 500 chars
+        
+        count = 0
+        
+        for line in body.strip().split('\n'):
+            if not line.strip():
+                continue
+            
+            # <CHANGE> Debug: Log each line
+            logger.info(f"[ADMS USER DEBUG] Processing line: {line}")
+            
+            try:
+                # ZKTeco sends data in different formats
+                # Format 1: PIN\tName\tPri\tPasswd\tCard\tGrp
+                # Format 2: USER PIN=xxx\tName=xxx\tPri=xxx
+                
+                if '=' in line:
+                    # <CHANGE> Key=Value format handling
+                    user_data = {}
+                    pin = None
+                    for part in line.replace('USER ', '').strip().split('\t'):
+                        if '=' in part:
+                            key, value = part.split('=', 1)
+                            key = key.strip().upper()
+                            value = value.strip()
+                            if key == 'PIN':
+                                pin = value
+                            elif key == 'NAME':
+                                user_data['name'] = value
+                            elif key == 'PRI':
+                                user_data['privilege'] = int(value) if value.isdigit() else 0
+                            elif key == 'PASSWD':
+                                user_data['password'] = value
+                            elif key == 'CARD':
+                                user_data['card_number'] = value
+                            elif key == 'GRP':
+                                user_data['group'] = value
+                    
+                    if pin:
+                        DeviceUser.objects.update_or_create(
+                            device=device,
+                            user_id=pin,
+                            defaults=user_data
+                        )
+                        count += 1
+                        logger.info(f"[ADMS USER DEBUG] Saved user (key=value): {pin}")
+                else:
+                    # Tab-separated format
+                    parts = line.strip().split('\t')
+                    if parts and parts[0]:
+                        user_data = {
+                            'name': parts[1] if len(parts) > 1 else '',
+                            'privilege': int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+                            'password': parts[3] if len(parts) > 3 else '',
+                            'card_number': parts[4] if len(parts) > 4 else '',
+                            'group': parts[5] if len(parts) > 5 else '1',
+                        }
+                        
+                        DeviceUser.objects.update_or_create(
+                            device=device,
+                            user_id=parts[0].strip(),
+                            defaults=user_data
+                        )
+                        count += 1
+                        logger.info(f"[ADMS USER DEBUG] Saved user (tab): {parts[0]}")
+                        
+            except Exception as e:
+                logger.warning(f"[ADMS USER DEBUG] Parse error: {line} - {str(e)}")
+        
+        # Update device user count
+        device.user_count = device.users.count()
+        device.save(update_fields=['user_count'])
+        
+        logger.info(f"[ADMS USER DEBUG] Total synced: {count} users")
+        return f"Synced {count} users"
+    
+    def _handle_fingerprint(self, request, device):
+        """Handle fingerprint template"""
+        body = request.body.decode('utf-8', errors='ignore')
+        count = 0
+        
+        for line in body.strip().split('\n'):
+            if not line.strip():
+                continue
+            
+            try:
+                parts = line.strip().split('\t')
+                if len(parts) >= 3:
+                    user_id = parts[0].strip()
+                    finger_index = int(parts[1]) if parts[1].isdigit() else 0
+                    
+                    # Update user fingerprint status
+                    DeviceUser.objects.filter(
+                        device=device, user_id=user_id
+                    ).update(has_fingerprint=True)
+                    
+                    # Store template if data available
+                    if len(parts) >= 4:
+                        template_data = parts[3] if len(parts) > 3 else ''
+                        try:
+                            binary_data = base64.b64decode(template_data) if template_data else None
+                        except:
+                            binary_data = template_data.encode() if template_data else None
+                        
+                        FingerprintTemplate.objects.update_or_create(
+                            device=device,
+                            user_id=user_id,
+                            finger_index=finger_index,
+                            defaults={
+                                'template_data': binary_data,
+                                'template_size': len(binary_data) if binary_data else 0,
+                            }
+                        )
+                    count += 1
+            except Exception as e:
+                logger.warning(f"Fingerprint parse error: {line} - {str(e)}")
+        
+        device.fp_count = device.users.filter(has_fingerprint=True).count()
+        device.save(update_fields=['fp_count'])
+        return f"Received {count} fingerprint templates"
+    
+    def _handle_face(self, request, device):
+        """Handle face template"""
+        body = request.body.decode('utf-8', errors='ignore')
+        count = 0
+        
+        for line in body.strip().split('\n'):
+            if not line.strip():
+                continue
+            
+            try:
+                parts = line.strip().split('\t')
+                if len(parts) >= 2:
+                    user_id = parts[0].strip()
+                    face_index = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+                    
+                    DeviceUser.objects.filter(
+                        device=device, user_id=user_id
+                    ).update(has_face=True)
+                    
+                    # Store face template if data available
+                    if len(parts) >= 3:
+                        template_data = parts[2] if len(parts) > 2 else ''
+                        try:
+                            binary_data = base64.b64decode(template_data) if template_data else None
+                        except:
+                            binary_data = template_data.encode() if template_data else None
+                        
+                        FaceTemplate.objects.update_or_create(
+                            device=device,
+                            user_id=user_id,
+                            face_index=face_index,
+                            defaults={
+                                'template_data': binary_data,
+                                'template_size': len(binary_data) if binary_data else 0,
+                            }
+                        )
+                    count += 1
+            except Exception as e:
+                logger.warning(f"Face parse error: {line} - {str(e)}")
+        
+        device.face_count = device.users.filter(has_face=True).count()
+        device.save(update_fields=['face_count'])
+        return f"Received {count} face templates"
+    
+    def _handle_biodata(self, request, device):
+        """Handle biometric data (generic)"""
+        return "Biodata received"
+    
+    def _handle_user_photo(self, request, device):
+        return "User photo received"
+    
+    def _handle_attendance_photo(self, request, device):
+        return "Attendance photo received"
+    
+    def _handle_first_data(self, request, device):
+        return "First data received"
+    
+    def _handle_options(self, request, device):
+        """Handle device options update"""
+        body = request.body.decode('utf-8', errors='ignore')
+        defaults = {}
+        self._parse_device_options(body, defaults)
+        
+        if defaults:
+            for key, value in defaults.items():
+                setattr(device, key, value)
+            device.save()
+        
+        return "Options updated"
+    
+    def _handle_unknown(self, request, device):
+        table = request.GET.get('table', 'UNKNOWN')
+        logger.warning(f"Unknown table type: {table}")
+        return f"Unknown table: {table}"
+
+
+class DeviceCommandAckView(APIView):
+    """Command acknowledgment handler"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        return self.post(request)
+    
+    def post(self, request):
+        sn = request.GET.get('SN', '')
+        cmd_id = request.GET.get('ID', '') or request.GET.get('id', '')
+        cmd_return = request.GET.get('Return', '') or request.GET.get('return', '')
+        
+        if cmd_id:
+            try:
+                command = DeviceCommand.objects.get(id=int(cmd_id))
+                command.status = 'executed' if cmd_return in ['0', ''] else 'failed'
+                command.response = request.body.decode('utf-8', errors='ignore')
+                command.return_value = int(cmd_return) if cmd_return.isdigit() else None
+                command.executed_at = timezone.now()
+                command.save()
+                logger.info(f"[ADMS] Command {cmd_id} acknowledged: {command.status}")
+            except DeviceCommand.DoesNotExist:
+                logger.warning(f"[ADMS] Command {cmd_id} not found")
+            except Exception as e:
+                logger.error(f"[ADMS] Command ack error: {str(e)}")
+        
+        return HttpResponse('OK', content_type='text/plain')
+
+
+# =============================================================================
+# REST API Endpoints
+# =============================================================================
+
+class DeviceListView(APIView):
+    """Device list and management"""
+    
+    def get(self, request):
+        """Get all devices"""
+        devices = ZKDevice.objects.all().order_by('-last_activity')
+        
+        # Filters
+        is_active = request.GET.get('is_active')
+        is_online = request.GET.get('is_online')
+        device_type = request.GET.get('device_type')
+        
+        if is_active is not None:
+            devices = devices.filter(is_active=is_active.lower() == 'true')
+        if is_online is not None:
+            five_min_ago = timezone.now() - timedelta(minutes=5)
+            if is_online.lower() == 'true':
+                devices = devices.filter(last_activity__gte=five_min_ago)
+            else:
+                devices = devices.filter(
+                    Q(last_activity__lt=five_min_ago) | Q(last_activity__isnull=True)
+                )
+        if device_type:
+            devices = devices.filter(device_type=device_type)
+        
+        serializer = ZKDeviceListSerializer(devices, many=True)
+        return Response({
+            'success': True,
+            'count': devices.count(),
+            'data': serializer.data
+        })
+    
+    def post(self, request):
+        """Manually add device"""
+        serializer = ZKDeviceCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            device = serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Device added successfully',
+                'data': ZKDeviceSerializer(device).data
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeviceDetailView(APIView):
+    """Single device operations"""
+    
+    def get(self, request, pk):
+        try:
+            device = ZKDevice.objects.get(pk=pk)
+            serializer = ZKDeviceSerializer(device)
+            return Response({'success': True, 'data': serializer.data})
+        except ZKDevice.DoesNotExist:
+            return Response({
+                'success': False, 
+                'message': 'Device not found'
+            }, status=404)
+    
+    def put(self, request, pk):
+        try:
+            device = ZKDevice.objects.get(pk=pk)
+            serializer = ZKDeviceSerializer(device, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'success': True, 'data': serializer.data})
+            return Response({
+                'success': False, 
+                'errors': serializer.errors
+            }, status=400)
+        except ZKDevice.DoesNotExist:
+            return Response({
+                'success': False, 
+                'message': 'Device not found'
+            }, status=404)
+    
+    def delete(self, request, pk):
+        try:
+            device = ZKDevice.objects.get(pk=pk)
+            device.delete()
+            return Response({'success': True, 'message': 'Device deleted'})
+        except ZKDevice.DoesNotExist:
+            return Response({
+                'success': False, 
+                'message': 'Device not found'
+            }, status=404)
+
+
+class AttendanceListView(APIView):
+    """Attendance log API"""
+    
+    def get(self, request):
+        """Get attendance logs with filters"""
+        logs = AttendanceLog.objects.select_related('device').all()
+        
+        # Filters
+        device_id = request.GET.get('device_id')
+        user_id = request.GET.get('user_id')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        punch_type = request.GET.get('punch_type')
+        is_synced = request.GET.get('is_synced')
+        
+        if device_id:
+            logs = logs.filter(device_id=device_id)
+        if user_id:
+            logs = logs.filter(user_id=user_id)
+        if date_from:
+            logs = logs.filter(punch_time__date__gte=date_from)
+        if date_to:
+            logs = logs.filter(punch_time__date__lte=date_to)
+        if punch_type is not None:
+            logs = logs.filter(punch_type=int(punch_type))
+        if is_synced is not None:
+            logs = logs.filter(is_synced=is_synced.lower() == 'true')
+        
+        # Pagination
+        page = int(request.GET.get('page', 1))
+        per_page = min(int(request.GET.get('per_page', 50)), 200)
+        offset = (page - 1) * per_page
+        
+        total = logs.count()
+        logs = logs[offset:offset + per_page]
+        
+        serializer = AttendanceLogSerializer(logs, many=True)
+        
+        return Response({
+            'success': True,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (total + per_page - 1) // per_page,
+            'data': serializer.data
+        })
+
+
+class AttendanceReportView(APIView):
+    """Attendance summary report"""
+    
+    def get(self, request):
+        date_from = request.GET.get('date_from', timezone.now().date().isoformat())
+        date_to = request.GET.get('date_to', timezone.now().date().isoformat())
+        user_id = request.GET.get('user_id')
+        device_id = request.GET.get('device_id')
+        
+        logs = AttendanceLog.objects.filter(
+            punch_time__date__gte=date_from,
+            punch_time__date__lte=date_to
+        )
+        
+        if user_id:
+            logs = logs.filter(user_id=user_id)
+        if device_id:
+            logs = logs.filter(device_id=device_id)
+        
+        # Group by user and date
+        summary = logs.annotate(
+            date=TruncDate('punch_time')
+        ).values('user_id', 'date').annotate(
+            punch_count=Count('id'),
+            first_punch=Min('punch_time'),
+            last_punch=Max('punch_time')
+        ).order_by('date', 'user_id')
+        
+        report = []
+        for item in summary:
+            hours = 0
+            if item['first_punch'] and item['last_punch']:
+                delta = item['last_punch'] - item['first_punch']
+                hours = round(delta.total_seconds() / 3600, 2)
+            
+            report.append({
+                'user_id': item['user_id'],
+                'date': item['date'],
+                'first_punch': item['first_punch'],
+                'last_punch': item['last_punch'],
+                'punch_count': item['punch_count'],
+                'total_hours': hours,
+                'status': 'present' if hours > 0 else 'absent'
+            })
+        
+        return Response({
+            'success': True,
+            'date_range': {'from': date_from, 'to': date_to},
+            'total_records': len(report),
+            'data': report
+        })
+
+
+class DeviceCommandView(APIView):
+    """Device command management"""
+    
+    def get(self, request, device_id):
+        """Get device command history"""
+        status_filter = request.GET.get('status')
+        commands = DeviceCommand.objects.filter(device_id=device_id)
+        
+        if status_filter:
+            commands = commands.filter(status=status_filter)
+        
+        commands = commands[:100]
+        serializer = DeviceCommandSerializer(commands, many=True)
+        return Response({'success': True, 'data': serializer.data})
+    
+    def post(self, request, device_id):
+        """Create new command"""
+        try:
+            device = ZKDevice.objects.get(pk=device_id)
+        except ZKDevice.DoesNotExist:
+            return Response({
+                'success': False, 
+                'message': 'Device not found'
+            }, status=404)
+        
+        command_type = request.data.get('command_type')
+        command_content = request.data.get('command_content', '')
+        
+        if not command_type:
+            return Response({
+                'success': False, 
+                'message': 'command_type required'
+            }, status=400)
+        
+        command = DeviceCommand.objects.create(
+            device=device,
+            command_type=command_type,
+            command_content=command_content
+        )
+        
+        return Response({
+            'success': True,
+            'message': f'Command {command_type} queued for {device.serial_number}',
+            'data': DeviceCommandSerializer(command).data
+        }, status=201)
+
+
+class BulkCommandView(APIView):
+    """Send command to multiple devices"""
+    
+    def post(self, request):
+        device_ids = request.data.get('device_ids', [])
+        command_type = request.data.get('command_type')
+        command_content = request.data.get('command_content', '')
+        
+        if not device_ids or not command_type:
+            return Response({
+                'success': False,
+                'message': 'device_ids and command_type required'
+            }, status=400)
+        
+        devices = ZKDevice.objects.filter(id__in=device_ids, is_active=True)
+        commands_created = []
+        
+        for device in devices:
+            cmd = DeviceCommand.objects.create(
+                device=device,
+                command_type=command_type,
+                command_content=command_content
+            )
+            commands_created.append(cmd.id)
+        
+        return Response({
+            'success': True,
+            'message': f'Command queued for {len(commands_created)} devices',
+            'command_ids': commands_created
+        }, status=201)
+
+
+class DeviceUsersView(APIView):
+    """Device user management"""
+    
+    def get(self, request, device_id):
+        users = DeviceUser.objects.filter(device_id=device_id)
+        
+        # Filters
+        is_active = request.GET.get('is_active')
+        has_fp = request.GET.get('has_fingerprint')
+        has_face = request.GET.get('has_face')
+        
+        if is_active is not None:
+            users = users.filter(is_active=is_active.lower() == 'true')
+        if has_fp is not None:
+            users = users.filter(has_fingerprint=has_fp.lower() == 'true')
+        if has_face is not None:
+            users = users.filter(has_face=has_face.lower() == 'true')
+        
+        serializer = DeviceUserSerializer(users, many=True)
+        return Response({
+            'success': True,
+            'count': users.count(),
+            'data': serializer.data
+        })
+
+
+class OperationLogView(APIView):
+    """Operation log API"""
+    
+    def get(self, request):
+        logs = OperationLog.objects.select_related('device').all()
+        
+        device_id = request.GET.get('device_id')
+        operation_type = request.GET.get('operation_type')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        if device_id:
+            logs = logs.filter(device_id=device_id)
+        if operation_type:
+            logs = logs.filter(operation_type=operation_type)
+        if date_from:
+            logs = logs.filter(operation_time__date__gte=date_from)
+        if date_to:
+            logs = logs.filter(operation_time__date__lte=date_to)
+        
+        page = int(request.GET.get('page', 1))
+        per_page = min(int(request.GET.get('per_page', 50)), 200)
+        offset = (page - 1) * per_page
+        
+        total = logs.count()
+        logs = logs[offset:offset + per_page]
+        
+        serializer = OperationLogSerializer(logs, many=True)
+        
+        return Response({
+            'success': True,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'data': serializer.data
+        })
+
+
+# =============================================================================
+# Dashboard & Health Check
+# =============================================================================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """API health check"""
     return Response({
-        'message': f'Processed {processed_count} attendance records',
-        'processed_logs': len(unprocessed_logs)
+        'status': 'healthy',
+        'timestamp': timezone.now().isoformat(),
+        'service': 'ZKTeco ADMS API'
     })
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def dashboard_stats(request):
-    """Get dashboard statistics"""
-    from django.db.models import Count
-    from datetime import date, timedelta
+    """Dashboard statistics"""
+    five_min_ago = timezone.now() - timedelta(minutes=5)
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
     
-    today = date.today()
+    total_devices = ZKDevice.objects.filter(is_active=True).count()
+    online_devices = ZKDevice.objects.filter(
+        is_active=True, 
+        last_activity__gte=five_min_ago
+    ).count()
     
     stats = {
-        'total_employees': Employee.objects.filter(is_active=True).count(),
-        'total_departments': Department.objects.filter(is_active=True).count(),
-        'total_shifts': Shift.objects.filter(is_active=True).count(),
-        'today_attendance': Attendance.objects.filter(date=today).count(),
-        'today_present': Attendance.objects.filter(date=today, status='present').count(),
-        'today_absent': Attendance.objects.filter(date=today, status='absent').count(),
-        'pending_leaves': LeaveApplication.objects.filter(status='pending').count(),
-        'unprocessed_logs': AttendanceLog.objects.filter(is_processed=False).count(),
+        'devices': {
+            'total': total_devices,
+            'online': online_devices,
+            'offline': total_devices - online_devices,
+        },
+        'users': {
+            'total': DeviceUser.objects.filter(is_active=True).count(),
+            'with_fingerprint': DeviceUser.objects.filter(has_fingerprint=True).count(),
+            'with_face': DeviceUser.objects.filter(has_face=True).count(),
+        },
+        'attendance': {
+            'today': AttendanceLog.objects.filter(punch_time__date=today).count(),
+            'this_month': AttendanceLog.objects.filter(punch_time__date__gte=month_start).count(),
+            'unique_users_today': AttendanceLog.objects.filter(
+                punch_time__date=today
+            ).values('user_id').distinct().count(),
+        },
+        'commands': {
+            'pending': DeviceCommand.objects.filter(status='pending').count(),
+            'executed_today': DeviceCommand.objects.filter(
+                status='executed',
+                executed_at__date=today
+            ).count(),
+        }
     }
     
-    return Response(stats)
+    return Response({
+        'success': True,
+        'timestamp': timezone.now().isoformat(),
+        'data': stats
+    })
+class DeviceTCPSyncView(APIView):
+    """TCP Sync endpoint for devices"""
+    
+    def post(self, request, device_id):
+        try:
+            device = ZKDevice.objects.get(pk=device_id)
+        except ZKDevice.DoesNotExist:
+            return Response({'error': 'Device not found'}, status=404)
+        
+        if not device.supports_tcp():
+            return Response({'error': 'Device does not support TCP connection'}, status=400)
+        
+        sync_type = request.data.get('sync_type', 'all')
+        
+        if sync_type == 'users':
+            result = sync_users_from_device_tcp(device)
+        elif sync_type == 'attendance':
+            result = sync_attendance_from_device_tcp(device)
+        else:
+            result = sync_all_from_device_tcp(device)
+        
+        return Response(result)
+
+
