@@ -1,0 +1,85 @@
+{% extends "zktest/mobile/base.html" %}
+
+{% block title %}Attendance - HRM System{% endblock %}
+
+{% block content %}
+<div class="pb-20">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+        <h1 class="text-2xl font-bold mb-4">Attendance Logs</h1>
+        
+        <!-- Date Selector -->
+        <form method="get" class="flex gap-2">
+            <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" 
+                   class="flex-1 px-4 py-2 rounded-lg text-gray-800"
+                   onchange="this.form.submit()">
+        </form>
+    </div>
+    
+    <!-- Stats -->
+    <div class="p-4 -mt-4">
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <p class="text-2xl font-bold text-indigo-600">{{ total_logs }}</p>
+                    <p class="text-xs text-gray-500">Total Logs</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-green-600">{{ unique_employees }}</p>
+                    <p class="text-xs text-gray-500">Employees</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-blue-600">{{ processed_logs }}</p>
+                    <p class="text-xs text-gray-500">Processed</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Logs List -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800">Punch Records</h2>
+            </div>
+            <div class="divide-y divide-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
+                {% for log in logs %}
+                <div class="p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800">
+                                {% if log.employee_obj %}
+                                    {{ log.employee_obj.get_full_name }}
+                                    <span class="text-sm text-gray-500">({{ log.employee_obj.employee_id }})</span>
+                                {% else %}
+                                    <span class="text-gray-600">User {{ log.user_id }}</span>
+                                {% endif %}
+                            </p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-sm text-gray-600">{{ log.punch_time|date:"H:i:s" }}</span>
+                                <span class="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800">
+                                    {{ log.get_verify_type_display }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-block px-3 py-1 text-sm font-medium rounded-full {% if log.punch_type == 0 %}bg-green-100 text-green-800{% elif log.punch_type == 1 %}bg-red-100 text-red-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                {{ log.get_punch_type_display }}
+                            </span>
+                            {% if log.is_synced %}
+                            <p class="text-xs text-green-600 mt-1">✓ Synced</p>
+                            {% else %}
+                            <p class="text-xs text-yellow-600 mt-1">⏳ Pending</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-gray-500">
+                    <ion-icon name="calendar-outline" class="text-4xl mb-2"></ion-icon>
+                    <p>No attendance logs for this date</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

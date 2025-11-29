@@ -3,12 +3,17 @@
 URL configuration for ZKTest app
 """
 from django.urls import path
-from zktest.views import (
+from zktest.report_views import (
     AttendanceLogReportView, 
     DailyAttendanceReportView,
+)
+from zktest.mobile_views import (
     MobileLoginView,
     MobileLogoutView,
-    MobileDashboardView
+    MobileDashboardView,
+    MobileAttendanceView,
+    MobileEmployeeListView,
+    MobileReportsView,
 )
 
 app_name = 'zktest'
@@ -22,4 +27,7 @@ urlpatterns = [
     path('mobile/', MobileLoginView.as_view(), name='mobile-login'),
     path('mobile/logout/', MobileLogoutView.as_view(), name='mobile-logout'),
     path('mobile/dashboard/', MobileDashboardView.as_view(), name='mobile-dashboard'),
+    path('mobile/attendance/', MobileAttendanceView.as_view(), name='mobile-attendance'),
+    path('mobile/employees/', MobileEmployeeListView.as_view(), name='mobile-employees'),
+    path('mobile/reports/', MobileReportsView.as_view(), name='mobile-reports'),
 ]

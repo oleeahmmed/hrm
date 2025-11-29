@@ -1,3 +1,9 @@
+# ==================== zktest/admin/zkdeviceadmin.py ====================
+"""
+ZKDevice Admin with Unified Smart Actions
+Auto-detects device type (ADMS/TCP) and uses appropriate method
+"""
+
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils import timezone
@@ -45,16 +51,15 @@ class DeviceCommandInline(TabularInline):
 class ZKDeviceAdmin(ModelAdmin):
     list_display = (
         'serial_number', 'device_name', 'ip_address', 
-        'display_online_status', 'display_device_type',
-        'user_count', 'fp_count', 'face_count', 'transaction_count', 
-        'last_activity'
+        'display_connection_type', 'display_online_status',
+        'user_count', 'transaction_count', 'last_activity'
     )
     list_filter = (
         'is_active', 
         'is_online',
+        ('connection_type', ChoicesDropdownFilter),
         ('device_type', ChoicesDropdownFilter),
         ('last_activity', RangeDateTimeFilter),
-        ('registered_at', RangeDateTimeFilter),
     )
     search_fields = ('serial_number', 'device_name', 'ip_address', 'mac_address')
     list_editable = ('device_name',)
@@ -67,21 +72,15 @@ class ZKDeviceAdmin(ModelAdmin):
         ('Device Information', {
             'fields': (
                 ('serial_number', 'device_name'),
-                ('device_type', 'oem_vendor'),
+                ('device_type', 'connection_type'),
+                ('oem_vendor',),
             ),
-            'description': 'Basic device identification',
             'classes': ['tab'],
         }),
         ('Network Configuration', {
             'fields': (
                 ('ip_address', 'mac_address'),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Device Details', {
-            'fields': (
-                ('firmware_version', 'platform'),
-                ('push_version',),
+                ('port', 'tcp_timeout', 'tcp_password'),
             ),
             'classes': ['tab'],
         }),
@@ -92,24 +91,33 @@ class ZKDeviceAdmin(ModelAdmin):
             ),
             'classes': ['tab'],
         }),
-        ('Capabilities & Statistics', {
+        ('Statistics', {
             'fields': (
                 ('user_count', 'fp_count'),
-                ('face_count', 'palm_count'),
-                ('transaction_count',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('ADMS Settings', {
-            'fields': (
-                ('push_interval', 'heartbeat_interval'),
-                ('timezone_offset',),
+                ('face_count', 'transaction_count'),
             ),
             'classes': ['tab'],
         }),
     )
     
-    actions = ['reboot_devices', 'sync_time', 'get_users_from_device', 'get_logs_from_device', 'mark_offline', 'clear_attendance_logs']
+    # ==================== SIMPLIFIED ACTIONS ====================
+    actions = [
+        'sync_users',
+        'sync_attendance',
+        'reboot_devices',
+        'sync_time',
+        'mark_offline'
+    ]
+    
+    # ==================== DISPLAY METHODS ====================
+    
+    @display(description='Connection', label={
+        'adms': 'success',
+        'tcp': 'info',
+        'both': 'warning'
+    })
+    def display_connection_type(self, obj):
+        return obj.connection_type
     
     @display(description='Status', label={
         True: 'success',
@@ -121,63 +129,186 @@ class ZKDeviceAdmin(ModelAdmin):
             return is_online
         return False
     
-    @display(description='Type', label={
-        'attendance': 'info',
-        'access': 'warning',
-        'multi': 'success'
-    })
-    def display_device_type(self, obj):
-        return obj.device_type
+    # ==================== SMART SYNC ACTIONS ====================
     
-    @action(description="Reboot Selected Devices")
+    @action(description="🔄 Sync Users (Auto-detect)")
+    def sync_users(self, request, queryset):
+        """
+        Smart sync: Auto-detects device connection type
+        - TCP devices: Immediate fetch via PyZK
+        - ADMS devices: Queue command
+        - Both: Try TCP first, fallback to ADMS
+        """
+        tcp_count = 0
+        adms_count = 0
+        error_count = 0
+        total_imported = 0
+        
+        for device in queryset:
+            try:
+                if device.connection_type in ['tcp', 'both']:
+                    # TCP DEVICE - Pull via PyZK immediately
+                    if not device.ip_address:
+                        error_count += 1
+                        continue
+                    
+                    from zktest.utils import import_users_from_device, auto_create_employee_from_device_user
+                    
+                    result = import_users_from_device(device)
+                    
+                    if result.get('success'):
+                        tcp_count += 1
+                        total_imported += result.get('imported', 0)
+                        
+                        # Auto-create employees
+                        if result.get('imported', 0) > 0:
+                            new_users = DeviceUser.objects.filter(device=device)
+                            for du in new_users:
+                                auto_create_employee_from_device_user(du)
+                    else:
+                        # If TCP fails and device supports both, try ADMS
+                        if device.connection_type == 'both':
+                            DeviceCommand.objects.create(
+                                device=device,
+                                command_type='GET_USERS'
+                            )
+                            adms_count += 1
+                        else:
+                            error_count += 1
+                            
+                else:
+                    # ADMS DEVICE - Queue command
+                    DeviceCommand.objects.create(
+                        device=device,
+                        command_type='GET_USERS'
+                    )
+                    adms_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+        
+        # Show results
+        messages = []
+        if tcp_count > 0:
+            messages.append(f"✅ TCP: {tcp_count} devices, {total_imported} users imported")
+        if adms_count > 0:
+            messages.append(f"📤 ADMS: {adms_count} commands queued")
+        if error_count > 0:
+            messages.append(f"⚠️ {error_count} failed")
+        
+        self.message_user(request, ' | '.join(messages) if messages else "No devices processed")
+    
+    @action(description="🔄 Sync Attendance (Auto-detect)")
+    def sync_attendance(self, request, queryset):
+        """
+        Smart sync: Auto-detects device connection type
+        - TCP devices: Immediate fetch via PyZK
+        - ADMS devices: Queue command
+        - Both: Try TCP first, fallback to ADMS
+        """
+        tcp_count = 0
+        adms_count = 0
+        error_count = 0
+        total_imported = 0
+        
+        for device in queryset:
+            try:
+                if device.connection_type in ['tcp', 'both']:
+                    # TCP DEVICE - Pull via PyZK immediately
+                    if not device.ip_address:
+                        error_count += 1
+                        continue
+                    
+                    from zktest.utils import import_attendance_from_device
+                    
+                    result = import_attendance_from_device(device)
+                    
+                    if result.get('success'):
+                        tcp_count += 1
+                        total_imported += result.get('imported', 0)
+                    else:
+                        # If TCP fails and device supports both, try ADMS
+                        if device.connection_type == 'both':
+                            DeviceCommand.objects.create(
+                                device=device,
+                                command_type='GET_LOGS'
+                            )
+                            adms_count += 1
+                        else:
+                            error_count += 1
+                            
+                else:
+                    # ADMS DEVICE - Queue command
+                    DeviceCommand.objects.create(
+                        device=device,
+                        command_type='GET_LOGS'
+                    )
+                    adms_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+        
+        # Show results
+        messages = []
+        if tcp_count > 0:
+            messages.append(f"✅ TCP: {tcp_count} devices, {total_imported} records imported")
+        if adms_count > 0:
+            messages.append(f"📤 ADMS: {adms_count} commands queued")
+        if error_count > 0:
+            messages.append(f"⚠️ {error_count} failed")
+        
+        self.message_user(request, ' | '.join(messages) if messages else "No devices processed")
+    
+    # ==================== BASIC ACTIONS ====================
+    
+    @action(description="🔄 Reboot Devices")
     def reboot_devices(self, request, queryset):
+        """Works for both device types"""
+        count = 0
         for device in queryset:
-            DeviceCommand.objects.create(
-                device=device,
-                command_type='REBOOT'
-            )
-        self.message_user(request, f"Reboot command queued for {queryset.count()} devices")
+            if device.connection_type in ['tcp', 'both'] and device.ip_address:
+                # Try TCP restart
+                try:
+                    from zktest.utils import execute_device_command
+                    execute_device_command(device, 'REBOOT')
+                    count += 1
+                except:
+                    # Fallback to ADMS if TCP fails
+                    DeviceCommand.objects.create(device=device, command_type='REBOOT')
+                    count += 1
+            else:
+                # Queue ADMS command
+                DeviceCommand.objects.create(device=device, command_type='REBOOT')
+                count += 1
+        
+        self.message_user(request, f"Reboot command sent to {count} devices")
     
-    @action(description="Sync Time")
+    @action(description="🕐 Sync Time")
     def sync_time(self, request, queryset):
+        """Works for both device types"""
+        count = 0
         for device in queryset:
-            DeviceCommand.objects.create(
-                device=device,
-                command_type='UPDATE_TIME'
-            )
-        self.message_user(request, f"Time sync command queued for {queryset.count()} devices")
+            if device.connection_type in ['tcp', 'both'] and device.ip_address:
+                # Try TCP time sync
+                try:
+                    from zktest.utils import execute_device_command
+                    execute_device_command(device, 'UPDATE_TIME')
+                    count += 1
+                except:
+                    # Fallback to ADMS if TCP fails
+                    DeviceCommand.objects.create(device=device, command_type='UPDATE_TIME')
+                    count += 1
+            else:
+                # Queue ADMS command
+                DeviceCommand.objects.create(device=device, command_type='UPDATE_TIME')
+                count += 1
+        
+        self.message_user(request, f"Time sync command sent to {count} devices")
     
-    @action(description="Get Users from Device")
-    def get_users_from_device(self, request, queryset):
-        for device in queryset:
-            DeviceCommand.objects.create(
-                device=device,
-                command_type='GET_USERS'
-            )
-        self.message_user(request, f"Get users command queued for {queryset.count()} devices")
-    
-    @action(description="Get Attendance Logs from Device")
-    def get_logs_from_device(self, request, queryset):
-        for device in queryset:
-            DeviceCommand.objects.create(
-                device=device,
-                command_type='GET_LOGS'
-            )
-        self.message_user(request, f"Get logs command queued for {queryset.count()} devices")
-    
-    @action(description="Mark as Offline")
+    @action(description="❌ Mark as Offline")
     def mark_offline(self, request, queryset):
         queryset.update(is_online=False)
         self.message_user(request, f"{queryset.count()} devices marked as offline")
-    
-    @action(description="Clear Attendance Logs")
-    def clear_attendance_logs(self, request, queryset):
-        for device in queryset:
-            DeviceCommand.objects.create(
-                device=device,
-                command_type='CLEAR_LOG'
-            )
-        self.message_user(request, f"Clear log command queued for {queryset.count()} devices")
 
 
 # ==================== ATTENDANCE LOG ADMIN ====================
@@ -187,15 +318,13 @@ class AttendanceLogAdmin(ModelAdmin):
     list_display = (
         'user_id', 'display_device', 'punch_time', 
         'display_punch_type', 'display_verify_type',
-        'display_temperature', 'display_sync_status', 'created_at'
+        'display_sync_status', 'created_at'
     )
     list_filter = (
         ('device', RelatedDropdownFilter),
         ('punch_type', ChoicesDropdownFilter),
-        ('verify_type', ChoicesDropdownFilter),
         'is_synced',
         ('punch_time', RangeDateTimeFilter),
-        ('created_at', RangeDateTimeFilter),
     )
     search_fields = ('user_id', 'device__serial_number', 'device__device_name')
     ordering = ('-punch_time',)
@@ -203,53 +332,15 @@ class AttendanceLogAdmin(ModelAdmin):
     date_hierarchy = 'punch_time'
     list_per_page = 50
     
-    fieldsets = (
-        ('Attendance Information', {
-            'fields': (
-                ('user_id', 'device'),
-                ('punch_time',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Details', {
-            'fields': (
-                ('punch_type', 'verify_type'),
-                ('work_code',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Additional Info', {
-            'fields': (
-                ('temperature', 'mask_status'),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Sync Status', {
-            'fields': (
-                ('is_synced', 'synced_at'),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Raw Data', {
-            'fields': (('raw_data',),),
-            'classes': ['tab'],
-        }),
-    )
+    actions = ['mark_as_synced', 'mark_as_unsynced']
     
-    actions = ['mark_as_synced', 'mark_as_unsynced', 'export_selected']
-    
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
     
     @display(description='Punch', label={
         0: 'success',
-        1: 'warning',
-        2: 'info',
-        3: 'info',
-        4: 'primary',
-        5: 'primary',
-        255: 'danger',
+        1: 'warning'
     })
     def display_punch_type(self, obj):
         return obj.punch_type
@@ -257,13 +348,6 @@ class AttendanceLogAdmin(ModelAdmin):
     @display(description='Verify', label='info')
     def display_verify_type(self, obj):
         return obj.get_verify_type_display()
-    
-    @display(description='Temp')
-    def display_temperature(self, obj):
-        if obj.temperature:
-            color = 'green' if obj.temperature < 37.5 else 'red'
-            return format_html('<span style="color: {}">{} C</span>', color, obj.temperature)
-        return '-'
     
     @display(description='Synced', label={
         True: 'success',
@@ -281,10 +365,6 @@ class AttendanceLogAdmin(ModelAdmin):
     def mark_as_unsynced(self, request, queryset):
         queryset.update(is_synced=False, synced_at=None)
         self.message_user(request, f"{queryset.count()} records marked as unsynced")
-    
-    @action(description="Export Selected")
-    def export_selected(self, request, queryset):
-        self.message_user(request, f"Export feature - {queryset.count()} records selected")
 
 
 # ==================== DEVICE USER ADMIN ====================
@@ -293,12 +373,10 @@ class AttendanceLogAdmin(ModelAdmin):
 class DeviceUserAdmin(ModelAdmin):
     list_display = (
         'user_id', 'name', 'display_device', 
-        'display_employee_status', 'display_privilege', 
-        'display_biometrics', 'card_number', 'is_active'
+        'display_employee_status', 'display_biometrics', 'is_active'
     )
     list_filter = (
         ('device', RelatedDropdownFilter),
-        ('privilege', ChoicesDropdownFilter),
         'is_active',
         'has_fingerprint',
         'has_face',
@@ -308,37 +386,9 @@ class DeviceUserAdmin(ModelAdmin):
     ordering = ('device', 'user_id')
     list_per_page = 50
     
-    fieldsets = (
-        ('User Information', {
-            'fields': (
-                ('device', 'user_id'),
-                ('name', 'privilege'),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Authentication', {
-            'fields': (
-                ('card_number', 'password'),
-                ('group',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Biometric Status', {
-            'fields': (
-                ('has_fingerprint', 'fp_count'),
-                ('has_face', 'has_palm'),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Status', {
-            'fields': (('is_active',),),
-            'classes': ['tab'],
-        }),
-    )
+    actions = ['activate_users', 'deactivate_users', 'create_employees']
     
-    actions = ['sync_to_device', 'delete_from_device', 'activate_users', 'deactivate_users', 'create_employees']
-    
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
     
@@ -347,48 +397,16 @@ class DeviceUserAdmin(ModelAdmin):
         False: 'warning'
     })
     def display_employee_status(self, obj):
-        """Show if device user has corresponding employee record"""
         return obj.get_employee() is not None
-    
-    @display(description='Role', label={
-        0: 'info',
-        2: 'warning',
-        6: 'success',
-        14: 'danger',
-    })
-    def display_privilege(self, obj):
-        return obj.privilege
     
     @display(description='Biometrics')
     def display_biometrics(self, obj):
         icons = []
         if obj.has_fingerprint:
-            icons.append(format_html('<span title="Fingerprint">FP</span>'))
+            icons.append('👆 FP')
         if obj.has_face:
-            icons.append(format_html('<span title="Face">Face</span>'))
-        if obj.has_palm:
-            icons.append(format_html('<span title="Palm">Palm</span>'))
-        return format_html(' | '.join(icons)) if icons else '-'
-    
-    @action(description="Sync to Device")
-    def sync_to_device(self, request, queryset):
-        for user in queryset:
-            DeviceCommand.objects.create(
-                device=user.device,
-                command_type='SET_USER',
-                command_content=f"PIN={user.user_id}\tName={user.name}\tPri={user.privilege}"
-            )
-        self.message_user(request, f"Sync command queued for {queryset.count()} users")
-    
-    @action(description="Delete from Device")
-    def delete_from_device(self, request, queryset):
-        for user in queryset:
-            DeviceCommand.objects.create(
-                device=user.device,
-                command_type='DEL_USER',
-                command_content=f"PIN={user.user_id}"
-            )
-        self.message_user(request, f"Delete command queued for {queryset.count()} users")
+            icons.append('😊 Face')
+        return ' | '.join(icons) if icons else '-'
     
     @action(description="Activate Users")
     def activate_users(self, request, queryset):
@@ -402,13 +420,13 @@ class DeviceUserAdmin(ModelAdmin):
     
     @action(description="Create Employee Records")
     def create_employees(self, request, queryset):
+        from zktest.utils import auto_create_employee_from_device_user
         created_count = 0
         for user in queryset:
-            if not user.get_employee():
-                employee = user.create_employee_if_not_exists()
-                if employee:
-                    created_count += 1
-        self.message_user(request, f"Created {created_count} employee records")
+            emp = auto_create_employee_from_device_user(user)
+            if emp:
+                created_count += 1
+        self.message_user(request, f"{created_count} employee records created")
 
 
 # ==================== DEVICE COMMAND ADMIN ====================
@@ -416,167 +434,58 @@ class DeviceUserAdmin(ModelAdmin):
 @admin.register(DeviceCommand)
 class DeviceCommandAdmin(ModelAdmin):
     list_display = (
-        'id', 'display_device', 'display_command_type', 
-        'display_status', 'created_at', 'sent_at', 'executed_at'
+        'id', 'display_device', 'command_type', 
+        'display_status', 'created_at', 'executed_at'
     )
     list_filter = (
         ('device', RelatedDropdownFilter),
         ('command_type', ChoicesDropdownFilter),
         ('status', ChoicesDropdownFilter),
-        ('created_at', RangeDateTimeFilter),
     )
-    search_fields = ('device__serial_number', 'device__device_name', 'command_content', 'command_id')
+    search_fields = ('device__serial_number', 'command_content')
     ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'sent_at', 'executed_at')
     list_per_page = 50
     
-    fieldsets = (
-        ('Command Information', {
-            'fields': (
-                ('device', 'command_type'),
-                ('status',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Command Details', {
-            'fields': (
-                ('command_content',),
-                ('command_id',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Response', {
-            'fields': (
-                ('response',),
-                ('return_value',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Timestamps', {
-            'fields': (
-                ('created_at', 'sent_at', 'executed_at'),
-            ),
-            'classes': ['tab'],
-        }),
-    )
-    
-    actions = ['mark_as_pending', 'mark_as_failed', 'retry_commands']
-    
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
-    
-    @display(description='Command', label='info')
-    def display_command_type(self, obj):
-        return obj.get_command_type_display()
     
     @display(description='Status', label={
         'pending': 'warning',
         'sent': 'info',
         'executed': 'success',
         'failed': 'danger',
-        'timeout': 'danger',
     })
     def display_status(self, obj):
         return obj.status
-    
-    @action(description="Mark as Pending")
-    def mark_as_pending(self, request, queryset):
-        queryset.update(status='pending', sent_at=None, executed_at=None)
-        self.message_user(request, f"{queryset.count()} commands marked as pending")
-    
-    @action(description="Mark as Failed")
-    def mark_as_failed(self, request, queryset):
-        queryset.update(status='failed')
-        self.message_user(request, f"{queryset.count()} commands marked as failed")
-    
-    @action(description="Retry Commands")
-    def retry_commands(self, request, queryset):
-        count = 0
-        for cmd in queryset.filter(status__in=['failed', 'timeout']):
-            DeviceCommand.objects.create(
-                device=cmd.device,
-                command_type=cmd.command_type,
-                command_content=cmd.command_content
-            )
-            count += 1
-        self.message_user(request, f"{count} commands queued for retry")
 
 
 # ==================== OPERATION LOG ADMIN ====================
 
 @admin.register(OperationLog)
 class OperationLogAdmin(ModelAdmin):
-    list_display = (
-        'display_device', 'display_operation_type',
-        'admin_id', 'user_id', 'operation_time', 'created_at'
-    )
+    list_display = ('display_device', 'operation_type', 'admin_id', 'operation_time')
     list_filter = (
         ('device', RelatedDropdownFilter),
-        ('operation_type', ChoicesDropdownFilter),
-        ('operation_time', RangeDateTimeFilter),
+        ('operation_type', ChoicesDropdownFilter)
     )
-    search_fields = ('device__device_name', 'admin_id', 'user_id', 'details')
+    search_fields = ('device__device_name', 'admin_id', 'user_id')
     ordering = ('-operation_time',)
-    readonly_fields = ('created_at',)
-    date_hierarchy = 'operation_time'
-    list_per_page = 50
     
-    fieldsets = (
-        ('Operation Information', {
-            'fields': (
-                ('device', 'operation_type'),
-                ('admin_id', 'user_id'),
-                ('operation_time',),
-            ),
-            'classes': ['tab'],
-        }),
-        ('Details', {
-            'fields': (('details',),),
-            'classes': ['tab'],
-        }),
-        ('Raw Data', {
-            'fields': (('raw_data',),),
-            'classes': ['tab'],
-        }),
-    )
-    
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
-    
-    @display(description='Operation', label={
-        'ENROLL': 'success',
-        'DELETE': 'danger',
-        'UPDATE': 'warning',
-        'ADMIN_LOGIN': 'info',
-        'ADMIN_LOGOUT': 'info',
-        'CLEAR': 'danger',
-        'REBOOT': 'warning',
-        'OTHER': 'secondary',
-    })
-    def display_operation_type(self, obj):
-        return obj.operation_type
 
 
 # ==================== DEVICE HEARTBEAT ADMIN ====================
 
 @admin.register(DeviceHeartbeat)
 class DeviceHeartbeatAdmin(ModelAdmin):
-    list_display = (
-        'display_device', 'heartbeat_time', 'ip_address',
-        'user_count', 'fp_count', 'face_count', 'log_count'
-    )
-    list_filter = (
-        ('device', RelatedDropdownFilter),
-        ('heartbeat_time', RangeDateTimeFilter),
-    )
-    search_fields = ('device__device_name', 'device__serial_number', 'ip_address')
+    list_display = ('display_device', 'heartbeat_time', 'ip_address', 'user_count')
+    list_filter = (('device', RelatedDropdownFilter),)
     ordering = ('-heartbeat_time',)
-    date_hierarchy = 'heartbeat_time'
-    list_per_page = 50
     
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
 
@@ -585,19 +494,10 @@ class DeviceHeartbeatAdmin(ModelAdmin):
 
 @admin.register(FingerprintTemplate)
 class FingerprintTemplateAdmin(ModelAdmin):
-    list_display = (
-        'user_id', 'display_device', 'finger_index', 
-        'template_size', 'template_flag', 'created_at'
-    )
-    list_filter = (
-        ('device', RelatedDropdownFilter),
-        'finger_index',
-    )
-    search_fields = ('user_id', 'device__device_name')
-    ordering = ('device', 'user_id', 'finger_index')
-    list_per_page = 50
+    list_display = ('user_id', 'display_device', 'finger_index', 'template_size')
+    list_filter = (('device', RelatedDropdownFilter),)
     
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number
 
@@ -606,17 +506,9 @@ class FingerprintTemplateAdmin(ModelAdmin):
 
 @admin.register(FaceTemplate)
 class FaceTemplateAdmin(ModelAdmin):
-    list_display = (
-        'user_id', 'display_device', 'face_index', 
-        'template_size', 'created_at'
-    )
-    list_filter = (
-        ('device', RelatedDropdownFilter),
-    )
-    search_fields = ('user_id', 'device__device_name')
-    ordering = ('device', 'user_id')
-    list_per_page = 50
+    list_display = ('user_id', 'display_device', 'face_index', 'template_size')
+    list_filter = (('device', RelatedDropdownFilter),)
     
-    @display(description='Device', ordering='device__device_name')
+    @display(description='Device')
     def display_device(self, obj):
         return obj.device.device_name or obj.device.serial_number

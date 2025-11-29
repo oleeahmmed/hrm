@@ -23,12 +23,6 @@ from .serializers import (
     DeviceCommandSerializer, OperationLogSerializer,
     DeviceHeartbeatSerializer, FingerprintTemplateSerializer, FaceTemplateSerializer
 )
-from zktest.utils import (
-    sync_users_from_device_tcp,
-    sync_attendance_from_device_tcp,
-    sync_all_from_device_tcp,
-    execute_tcp_command
-)
 logger = logging.getLogger(__name__)
 
 
@@ -994,27 +988,7 @@ def dashboard_stats(request):
         'timestamp': timezone.now().isoformat(),
         'data': stats
     })
-class DeviceTCPSyncView(APIView):
-    """TCP Sync endpoint for devices"""
-    
-    def post(self, request, device_id):
-        try:
-            device = ZKDevice.objects.get(pk=device_id)
-        except ZKDevice.DoesNotExist:
-            return Response({'error': 'Device not found'}, status=404)
-        
-        if not device.supports_tcp():
-            return Response({'error': 'Device does not support TCP connection'}, status=400)
-        
-        sync_type = request.data.get('sync_type', 'all')
-        
-        if sync_type == 'users':
-            result = sync_users_from_device_tcp(device)
-        elif sync_type == 'attendance':
-            result = sync_attendance_from_device_tcp(device)
-        else:
-            result = sync_all_from_device_tcp(device)
-        
-        return Response(result)
+# DeviceTCPSyncView removed - Use PyZK views instead
+# See zktest/api/pyzk_views.py for TCP sync operations
 
 

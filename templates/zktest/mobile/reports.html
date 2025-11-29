@@ -1,0 +1,92 @@
+{% extends "zktest/mobile/base.html" %}
+
+{% block title %}Reports - HRM System{% endblock %}
+
+{% block content %}
+<div class="pb-20">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+        <h1 class="text-2xl font-bold mb-4">Daily Report</h1>
+        
+        <!-- Date Selector -->
+        <form method="get" class="flex gap-2">
+            <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" 
+                   class="flex-1 px-4 py-2 rounded-lg text-gray-800"
+                   onchange="this.form.submit()">
+        </form>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="p-4 -mt-4">
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <p class="text-2xl font-bold text-green-600">{{ total_present }}</p>
+                    <p class="text-xs text-gray-500">Present</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-red-600">{{ total_absent }}</p>
+                    <p class="text-xs text-gray-500">Absent</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-blue-600">{{ total_work_hours }}h</p>
+                    <p class="text-xs text-gray-500">Work Hours</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Attendance Records -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800">Attendance Records</h2>
+            </div>
+            <div class="divide-y divide-gray-200 max-h-[calc(100vh-320px)] overflow-y-auto">
+                {% for record in attendance_records %}
+                <div class="p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800">{{ record.employee.get_full_name }}</p>
+                            <p class="text-sm text-gray-500">{{ record.employee.employee_id }}</p>
+                            
+                            {% if record.status == 'present' %}
+                            <div class="mt-2 space-y-1">
+                                <div class="flex items-center gap-2 text-sm">
+                                    <ion-icon name="log-in" class="text-green-600"></ion-icon>
+                                    <span class="text-gray-600">In: {{ record.check_in_time|date:"H:i" }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-sm">
+                                    <ion-icon name="log-out" class="text-red-600"></ion-icon>
+                                    <span class="text-gray-600">Out: {{ record.check_out_time|date:"H:i" }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-sm">
+                                    <ion-icon name="time" class="text-blue-600"></ion-icon>
+                                    <span class="text-gray-600">Hours: {{ record.work_hours }}h</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="text-right">
+                            {% if record.status == 'present' %}
+                            <span class="inline-block px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800">
+                                Present
+                            </span>
+                            <p class="text-sm font-semibold text-blue-600 mt-2">৳{{ record.daily_amount }}</p>
+                            {% else %}
+                            <span class="inline-block px-3 py-1 text-sm font-medium rounded-full bg-red-100 text-red-800">
+                                Absent
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-gray-500">
+                    <ion-icon name="bar-chart-outline" class="text-4xl mb-2"></ion-icon>
+                    <p>No attendance records for this date</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

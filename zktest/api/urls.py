@@ -1,11 +1,12 @@
 from django.urls import path
 from . import api_views
+from . import pyzk_views
 
 app_name = 'zktest'
 
 urlpatterns = [
     # ==========================================================================
-    # ADMS Protocol Endpoints (Device Communication)
+    # ADMS Protocol Endpoints (Device Communication) - PUSH BASED
     # ==========================================================================
     
     # Main ADMS endpoints
@@ -23,7 +24,7 @@ urlpatterns = [
     path('iclockpush/getrequest', api_views.ADMSHandlerView.as_view(), name='adms_push_getrequest'),
     
     # ==========================================================================
-    # REST API Endpoints
+    # REST API Endpoints - ADMS Management
     # ==========================================================================
     
     # Health & Dashboard
@@ -35,7 +36,8 @@ urlpatterns = [
     path('api/devices/<int:pk>/', api_views.DeviceDetailView.as_view(), name='device_detail'),
     path('api/devices/<int:device_id>/commands/', api_views.DeviceCommandView.as_view(), name='device_commands'),
     path('api/devices/<int:device_id>/users/', api_views.DeviceUsersView.as_view(), name='device_users'),
-    path('api/devices/<int:device_id>/sync-tcp/', api_views.DeviceTCPSyncView.as_view(), name='device_tcp_sync'),
+    # TCP sync removed - use PyZK views instead (see below)
+    
     # Bulk Operations
     path('api/commands/bulk/', api_views.BulkCommandView.as_view(), name='bulk_commands'),
     
@@ -45,4 +47,17 @@ urlpatterns = [
     
     # Operation Logs
     path('api/operations/', api_views.OperationLogView.as_view(), name='operation_logs'),
+    
+    # ==========================================================================
+    # PyZK (TCP) API Endpoints - PULL BASED for Old Devices
+    # Only 4 Essential APIs
+    # ==========================================================================
+    
+    # PyZK User Operations
+    path('api/pyzk/devices/<int:device_id>/fetch-users/', pyzk_views.PyZKFetchUsersView.as_view(), name='pyzk_fetch_users'),
+    path('api/pyzk/devices/<int:device_id>/import-users/', pyzk_views.PyZKImportUsersView.as_view(), name='pyzk_import_users'),
+    
+    # PyZK Attendance Operations
+    path('api/pyzk/devices/<int:device_id>/fetch-attendance/', pyzk_views.PyZKFetchAttendanceView.as_view(), name='pyzk_fetch_attendance'),
+    path('api/pyzk/devices/<int:device_id>/import-attendance/', pyzk_views.PyZKImportAttendanceView.as_view(), name='pyzk_import_attendance'),
 ]
