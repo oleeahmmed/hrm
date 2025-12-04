@@ -1,106 +1,75 @@
 {% extends "zktest/mobile/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block main_content %}
 
-{% block title %}Dashboard - HRM System{% endblock %}
-
-{% block content %}
-<div class="pb-20">
-    <!-- Header -->
-    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h1 class="text-2xl font-bold">Dashboard</h1>
-            <a href="{% url 'zktest:mobile-logout' %}" class="text-white">
-                <ion-icon name="log-out-outline" class="text-2xl"></ion-icon>
-            </a>
-        </div>
-        <p class="text-indigo-100">{{ today|date:"l, F d, Y" }}</p>
-    </div>
+<div class="flex h-full">
+    {% include "zktest/mobile/_sidebar.html" %}
     
-    <!-- Stats Cards -->
-    <div class="p-4 -mt-8">
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm">Total Logs</p>
-                        <p class="text-2xl font-bold text-gray-800">{{ total_logs }}</p>
-                    </div>
-                    <div class="bg-blue-100 p-3 rounded-full">
-                        <ion-icon name="document-text" class="text-2xl text-blue-600"></ion-icon>
-                    </div>
+    <main class="flex-1 lg:ml-64 pb-20 lg:pb-0">
+        <div class="p-4 lg:p-8">
+            {% include "zktest/mobile/_mobile_header.html" with page_title="Dashboard" %}
+            
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-3xl font-bold">{{ total_employees }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Employees</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-3xl font-bold text-green-600">{{ present_today }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Present</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-3xl font-bold text-red-600">{{ absent_today }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Absent</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-3xl font-bold">{{ total_logs_today }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Logs</p>
                 </div>
             </div>
             
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm">Present</p>
-                        <p class="text-2xl font-bold text-green-600">{{ unique_employees }}</p>
-                    </div>
-                    <div class="bg-green-100 p-3 rounded-full">
-                        <ion-icon name="checkmark-circle" class="text-2xl text-green-600"></ion-icon>
-                    </div>
+            <!-- <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">This Month</p>
+                    <p class="text-2xl font-bold mt-1">{{ total_logs_month }}</p>
                 </div>
-            </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Devices</p>
+                    <p class="text-2xl font-bold mt-1">{{ online_devices }}/{{ total_devices }}</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Attendance Rate</p>
+                    <p class="text-2xl font-bold mt-1">{% if total_employees > 0 %}{% widthratio present_today total_employees 100 %}%{% else %}0%{% endif %}</p>
+                </div>
+            </div> -->
             
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm">Processed</p>
-                        <p class="text-2xl font-bold text-indigo-600">{{ processed_logs }}</p>
-                    </div>
-                    <div class="bg-indigo-100 p-3 rounded-full">
-                        <ion-icon name="sync" class="text-2xl text-indigo-600"></ion-icon>
-                    </div>
+            <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
+                    <h2 class="font-semibold">Recent Activity</h2>
                 </div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-gray-500 text-sm">Employees</p>
-                        <p class="text-2xl font-bold text-purple-600">{{ total_employees }}</p>
-                    </div>
-                    <div class="bg-purple-100 p-3 rounded-full">
-                        <ion-icon name="people" class="text-2xl text-purple-600"></ion-icon>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Recent Logs -->
-        <div class="bg-white rounded-lg shadow">
-            <div class="p-4 border-b border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-800">Recent Logs</h2>
-            </div>
-            <div class="divide-y divide-gray-200">
-                {% for log in recent_logs %}
-                <div class="p-4">
-                    <div class="flex items-center justify-between">
+                <div class="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-96 overflow-y-auto">
+                    {% for log in recent_logs %}
+                    <div class="p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-bold text-sm">
+                            {% if log.employee_obj %}{{ log.employee_obj.first_name|first }}{{ log.employee_obj.last_name|first }}{% else %}U{% endif %}
+                        </div>
                         <div class="flex-1">
-                            <p class="font-medium text-gray-800">
-                                {% if log.employee_obj %}
-                                    {{ log.employee_obj.get_full_name }}
-                                {% else %}
-                                    User {{ log.user_id }}
-                                {% endif %}
-                            </p>
-                            <p class="text-sm text-gray-500">{{ log.punch_time|date:"H:i:s" }}</p>
+                            <p class="font-medium text-sm">{% if log.employee_obj %}{{ log.employee_obj.get_full_name }}{% else %}User {{ log.user_id }}{% endif %}</p>
+                            <p class="text-xs text-zinc-500">{{ log.punch_time|date:"h:i A" }} • {{ log.device.device_name|default:log.device.serial_number }}</p>
                         </div>
-                        <div class="text-right">
-                            <span class="inline-block px-2 py-1 text-xs rounded-full {% if log.punch_type == 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-                                {{ log.get_punch_type_display }}
-                            </span>
-                        </div>
+                        <span class="px-2 py-1 text-xs rounded {% if log.punch_type == 0 %}bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400{% else %}bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400{% endif %}">
+                            {{ log.get_punch_type_display }}
+                        </span>
                     </div>
+                    {% empty %}
+                    <div class="p-8 text-center text-zinc-500">No activity</div>
+                    {% endfor %}
                 </div>
-                {% empty %}
-                <div class="p-8 text-center text-gray-500">
-                    <ion-icon name="document-outline" class="text-4xl mb-2"></ion-icon>
-                    <p>No logs today</p>
-                </div>
-                {% endfor %}
             </div>
         </div>
-    </div>
+    </main>
+    
+    {% include "zktest/mobile/_bottom_nav.html" %}
 </div>
+
 {% endblock %}

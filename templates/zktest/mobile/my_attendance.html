@@ -1,0 +1,87 @@
+{% extends "zktest/mobile/base.html" %}
+{% block title %}My Attendance{% endblock %}
+{% block main_content %}
+
+<div class="flex h-full">
+    {% include "zktest/mobile/_sidebar.html" %}
+    
+    <main class="flex-1 lg:ml-64 pb-20 lg:pb-0">
+        <div class="p-4 lg:p-8">
+            {% include "zktest/mobile/_mobile_header.html" with page_title="My Attendance" %}
+            
+            {% if error %}
+            <div class="mb-4 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-900 rounded-lg text-red-800 dark:text-red-200">{{ error }}</div>
+            {% else %}
+            
+            <form method="get" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 mb-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Start Date</label>
+                        <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">End Date</label>
+                        <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium">Apply</button>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold">{{ total_days }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Days</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-green-600">{{ present_days }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Present</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-red-600">{{ absent_days }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Absent</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold">{{ total_work_hours }}h</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Work Hours</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-blue-600">{{ total_overtime }}h</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Overtime</p>
+                </div>
+            </div>
+            
+            <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg mb-6">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
+                    <h2 class="font-semibold">Attendance Records</h2>
+                </div>
+                <div class="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-96 overflow-y-auto">
+                    {% for record in attendance_records %}
+                    <div class="p-4 flex justify-between items-start">
+                        <div>
+                            <p class="font-medium">{{ record.date|date:"F d, Y" }}</p>
+                            {% if record.status == 'present' %}
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                                In: {{ record.check_in_time|date:"h:i A" }} • Out: {{ record.check_out_time|date:"h:i A" }} • {{ record.work_hours }}h
+                            </p>
+                            {% endif %}
+                        </div>
+                        <span class="px-3 py-1 text-sm rounded {% if record.status == 'present' %}bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400{% else %}bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400{% endif %}">
+                            {{ record.get_status_display }}
+                        </span>
+                    </div>
+                    {% empty %}
+                    <div class="p-8 text-center text-zinc-500">No records found</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            {% endif %}
+        </div>
+    </main>
+    
+    {% include "zktest/mobile/_bottom_nav.html" %}
+</div>
+
+{% endblock %}

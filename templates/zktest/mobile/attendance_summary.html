@@ -1,0 +1,91 @@
+{% extends "zktest/mobile/base.html" %}
+{% block title %}Attendance Summary{% endblock %}
+{% block main_content %}
+
+<div class="flex h-full">
+    {% include "zktest/mobile/_sidebar.html" %}
+    
+    <main class="flex-1 lg:ml-64 pb-20 lg:pb-0">
+        <div class="p-4 lg:p-8">
+            {% include "zktest/mobile/_mobile_header.html" with page_title="Attendance Summary" %}
+            
+            <form method="get" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 mb-6">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Type</label>
+                        <select name="type" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                            <option value="single" {% if report_type == 'single' %}selected{% endif %}>Single Date</option>
+                            <option value="range" {% if report_type == 'range' %}selected{% endif %}>Date Range</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">{% if report_type == 'range' %}Start {% endif %}Date</label>
+                        <input type="date" name="{% if report_type == 'range' %}start_date{% else %}date{% endif %}" value="{{ start_date|date:'Y-m-d' }}" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    </div>
+                    {% if report_type == 'range' %}
+                    <div>
+                        <label class="block text-sm font-medium mb-2">End Date</label>
+                        <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    </div>
+                    {% endif %}
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium">Generate</button>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold">{{ total_employees }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Employees</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-green-600">{{ total_present }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Present</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-red-600">{{ total_absent }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Absent</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold">{{ total_work_hours }}h</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Total Hours</p>
+                </div>
+            </div>
+            
+            <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">Employee</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">Present</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">Absent</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">Hours</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase">Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {% for summary in employee_summary %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <p class="font-medium text-sm">{{ summary.employee.get_full_name }}</p>
+                                <p class="text-xs text-zinc-500">{{ summary.employee.employee_id }}</p>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-green-600">{{ summary.present_days }}</td>
+                            <td class="px-4 py-3 text-sm text-red-600">{{ summary.absent_days }}</td>
+                            <td class="px-4 py-3 text-sm">{{ summary.total_work_hours }}h</td>
+                            <td class="px-4 py-3 text-sm">{{ summary.attendance_percentage }}%</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="px-4 py-8 text-center text-zinc-500">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    {% include "zktest/mobile/_bottom_nav.html" %}
+</div>
+
+{% endblock %}

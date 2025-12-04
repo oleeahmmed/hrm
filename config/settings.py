@@ -34,7 +34,7 @@ SECRET_KEY = 'django-insecure-0)lu2mik4_mv5mv%3p@zd)%#neueh1a3n6i9kond$9n-lx&+@@
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'hrm.ezygrocery.com',
+    'hrm.ezydream.com',
     'localhost',
     '127.0.0.1',
     '0.0.0.0',

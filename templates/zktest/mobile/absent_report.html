@@ -1,0 +1,63 @@
+{% extends "zktest/mobile/base.html" %}
+{% block title %}Absent Report{% endblock %}
+{% block main_content %}
+
+<div class="flex h-full">
+    {% include "zktest/mobile/_sidebar.html" %}
+    
+    <main class="flex-1 lg:ml-64 pb-20 lg:pb-0">
+        <div class="p-4 lg:p-8">
+            {% include "zktest/mobile/_mobile_header.html" with page_title="Absent Report" %}
+            
+            <form method="get" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 mb-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="lg:col-span-2">
+                        <label class="block text-sm font-medium mb-2">Select Date</label>
+                        <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()" class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg">
+                    </div>
+                </div>
+            </form>
+            
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold">{{ total_employees }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Total</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-green-600">{{ present_count }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Present</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
+                    <p class="text-2xl font-bold text-red-600">{{ absent_count }}</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Absent</p>
+                </div>
+            </div>
+            
+            <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
+                    <h2 class="font-semibold">Absent Employees</h2>
+                </div>
+                <div class="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-96 overflow-y-auto">
+                    {% for record in absent_records %}
+                    <div class="p-4 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-bold text-sm">
+                            {{ record.employee.first_name|first }}{{ record.employee.last_name|first }}
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-medium text-sm">{{ record.employee.get_full_name }}</p>
+                            <p class="text-xs text-zinc-500">ID: {{ record.employee.employee_id }}</p>
+                        </div>
+                        <span class="px-3 py-1 text-sm rounded bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400">{{ record.status }}</span>
+                    </div>
+                    {% empty %}
+                    <div class="p-8 text-center text-green-600">All employees present!</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    {% include "zktest/mobile/_bottom_nav.html" %}
+</div>
+
+{% endblock %}

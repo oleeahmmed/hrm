@@ -20,12 +20,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
+    # Admin URLs
     path('admin/core/', include('core.urls')),
     path('admin/hr/', include('hr.urls')),
     path('admin/zktest/', include('zktest.urls')),
     path('admin/', admin.site.urls),
-    path('api/', include('zktest.api.urls')),
-    path('', include('zktest.urls')),  # For mobile views at /mobile/
+    
+    # ADMS + API + Mobile (all in one - priority order matters!)
+    path('', include('zktest.api.urls')),  # ADMS: /iclock/*, API: /api/*, PyZK: /api/pyzk/*
+    path('', include('zktest.urls')),      # Mobile: /mobile/*, Reports: /reports/*
 ]
 
 if settings.DEBUG:

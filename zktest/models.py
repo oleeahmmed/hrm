@@ -83,6 +83,17 @@ class Employee(models.Model):
     
     # Basic Information - matches attendance user_id
     user_id = models.CharField(_("User ID"), max_length=50, unique=True, db_index=True)
+    
+    # Django User Link (Optional - for web portal access)
+    portal_user = models.OneToOneField(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='zktest_employee_profile',
+        verbose_name=_("Portal User"),
+        help_text=_("Link to Django user account for web portal access")
+    )
     employee_id = models.CharField(_("Employee ID"), max_length=50, unique=True)
     
     # Personal Details
@@ -948,7 +959,7 @@ class AttendanceLog(models.Model):
         (3, _('Break In')),
         (4, _('OT In')),
         (5, _('OT Out')),
-        (255, _('Unknown')),
+        (255, _('Punch')),
     )
     
     VERIFY_TYPES = (

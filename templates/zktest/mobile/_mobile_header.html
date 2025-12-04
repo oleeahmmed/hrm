@@ -1,0 +1,10 @@
+<!-- Mobile Header with Menu Button -->
+<div class="flex items-center gap-3 mb-6 lg:hidden">
+    <button onclick="toggleMobileSidebar()" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
+        <ion-icon name="menu" class="text-2xl"></ion-icon>
+    </button>
+    <h1 class="text-2xl font-bold">{{ page_title }}</h1>
+</div>
+
+<!-- Desktop Header -->
+<h1 class="hidden lg:block text-2xl font-bold mb-6">{{ page_title }}</h1>

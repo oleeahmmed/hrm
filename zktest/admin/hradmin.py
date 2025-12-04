@@ -170,7 +170,7 @@ class ShiftAdmin(ModelAdmin):
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
     list_display = (
-        'employee_id', 'user_id', 'get_full_name', 
+        'employee_id', 'user_id', 'get_full_name', 'display_portal_user',
         'department_code', 'designation_code', 'shift_code',
         'display_device_enrollment', 'display_employment_status', 'is_active'
     )
@@ -192,6 +192,7 @@ class EmployeeAdmin(ModelAdmin):
                 ('user_id', 'employee_id'),
                 ('first_name', 'last_name'),
                 ('email', 'phone_number'),
+                ('portal_user',),
             ),
             'classes': ['tab'],
         }),
@@ -217,6 +218,13 @@ class EmployeeAdmin(ModelAdmin):
         }),
     )
     readonly_fields = ('created_at', 'updated_at')
+    
+    @display(description='Portal User')
+    def display_portal_user(self, obj):
+        """Show if employee has portal access"""
+        if obj.portal_user:
+            return format_html('<span style="color: green;">✓ {}</span>', obj.portal_user.username)
+        return format_html('<span style="color: gray;">-</span>')
     
     @display(description='Devices')
     def display_device_enrollment(self, obj):
