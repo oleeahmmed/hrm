@@ -38,7 +38,8 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    '*'  # Keep wildcard for development
+    '*'  
+    '195.35.45.104'
 ]
 
 
