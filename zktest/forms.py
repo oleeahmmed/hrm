@@ -100,7 +100,7 @@ class DailyAttendanceReportForm(forms.Form):
     
     break_time_minutes = forms.IntegerField(
         required=False,
-        initial=60,
+        initial=0,
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'min': '0',

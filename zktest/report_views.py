@@ -32,7 +32,7 @@ def get_work_day_range(date):
     return start_datetime, end_datetime
 
 
-def calculate_work_hours_from_punches(punches, break_time_minutes=60):
+def calculate_work_hours_from_punches(punches, break_time_minutes=0):
     """
     Calculate work hours from punch times
     
@@ -126,7 +126,7 @@ def calculate_work_hours_from_punches(punches, break_time_minutes=60):
     }
 
 
-def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate, break_time_minutes=60):
+def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate, break_time_minutes=0):
     """
     Generate attendance record from attendance logs for a specific date
     
@@ -302,7 +302,7 @@ class DailyAttendanceReportView(View):
             from_date = form.cleaned_data.get('from_date')
             to_date = form.cleaned_data.get('to_date')
             employee = form.cleaned_data.get('employee')
-            break_time = form.cleaned_data.get('break_time_minutes', 60)
+            break_time = form.cleaned_data.get('break_time_minutes', 0)
             
             if from_date and to_date:
                 # Get employees to process
@@ -312,10 +312,10 @@ class DailyAttendanceReportView(View):
                 
                 # Process each employee for each date
                 for emp in employees:
-                    # Get employee salary info
+                    # Get employee salary info from EmployeeSalary model
                     try:
                         salary_info = EmployeeSalary.objects.get(user_id=emp)
-                        per_hour_rate = salary_info.per_hour_rate
+                        per_hour_rate = salary_info.per_hour_rate if salary_info.per_hour_rate else Decimal('0.00')
                     except EmployeeSalary.DoesNotExist:
                         per_hour_rate = Decimal('0.00')
                     
@@ -393,12 +393,46 @@ class DailyAttendanceReportView(View):
         # Sort by date and employee
         attendance_records.sort(key=lambda x: (x['date'], x['employee'].employee_id))
         
+        # Generate employee summary
+        employee_summary = {}
+        for record in attendance_records:
+            emp_id = record['employee'].user_id
+            if emp_id not in employee_summary:
+                employee_summary[emp_id] = {
+                    'employee': record['employee'],
+                    'per_hour_rate': record['per_hour_rate'],
+                    'total_days': 0,
+                    'present_days': 0,
+                    'absent_days': 0,
+                    'total_work_hours': Decimal('0.00'),
+                    'total_amount': Decimal('0.00'),
+                }
+            
+            employee_summary[emp_id]['total_days'] += 1
+            if record['status'] == 'present':
+                employee_summary[emp_id]['present_days'] += 1
+                employee_summary[emp_id]['total_work_hours'] += record['work_hours']
+                employee_summary[emp_id]['total_amount'] += record['daily_amount']
+            else:
+                employee_summary[emp_id]['absent_days'] += 1
+        
+        # Calculate attendance percentage for each employee
+        for emp_id, summary in employee_summary.items():
+            if summary['total_days'] > 0:
+                summary['attendance_percentage'] = round((summary['present_days'] / summary['total_days']) * 100, 1)
+            else:
+                summary['attendance_percentage'] = 0
+        
+        # Convert to list and sort by employee ID
+        employee_summary_list = sorted(employee_summary.values(), key=lambda x: x['employee'].employee_id)
+        
         context = {
             **admin.site.each_context(request),
             'title': 'Daily Attendance Report',
             'subtitle': 'Generated from AttendanceLog with work day rules (6 AM - 4 AM)',
             'form': form,
             'attendance_records': attendance_records[:500],  # Limit to 500 records
+            'employee_summary': employee_summary_list,
             'total_records': len(attendance_records),
             'total_present': total_present,
             'total_absent': total_absent,
