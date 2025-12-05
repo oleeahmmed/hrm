@@ -38,10 +38,9 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    '*'  
+    '*',  # এখানে comma ছিল না
     '195.35.45.104'
 ]
-
 
 # Application definition
 
