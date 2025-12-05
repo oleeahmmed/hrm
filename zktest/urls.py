@@ -16,6 +16,7 @@ from zktest.mobile_views import (
     AbsentReportView,
     EmployeeListView,
     MobileAttendanceLogReportView,
+    RecentActivityAPIView,
 )
 
 app_name = 'zktest'
@@ -34,4 +35,7 @@ urlpatterns = [
     path('mobile/absent-report/', AbsentReportView.as_view(), name='mobile-absent-report'),
     path('mobile/employees/', EmployeeListView.as_view(), name='mobile-employees'),
     path('mobile/attendance-log-report/', MobileAttendanceLogReportView.as_view(), name='mobile-attendance-log-report'),
+    
+    # API Endpoints
+    path('api/recent-activity/', RecentActivityAPIView.as_view(), name='api-recent-activity'),
 ]

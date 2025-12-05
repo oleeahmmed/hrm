@@ -44,10 +44,15 @@
             </div> -->
             
             <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg">
-                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
                     <h2 class="font-semibold">Recent Activity</h2>
+                    <button id="refreshBtn" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors" title="Refresh">
+                        <svg id="refreshIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
                 </div>
-                <div class="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-96 overflow-y-auto">
+                <div id="recentActivityContainer" class="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-96 overflow-y-auto">
                     {% for log in recent_logs %}
                     <div class="p-4 flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-bold text-sm">
@@ -71,5 +76,96 @@
     
     {% include "zktest/mobile/_bottom_nav.html" %}
 </div>
+
+<script>
+    let autoRefreshInterval;
+    
+    // Function to fetch and update recent activity
+    async function refreshRecentActivity() {
+        const refreshIcon = document.getElementById('refreshIcon');
+        const container = document.getElementById('recentActivityContainer');
+        
+        // Add spinning animation
+        refreshIcon.classList.add('animate-spin');
+        
+        try {
+            const response = await fetch('{% url "zktest:api-recent-activity" %}');
+            const data = await response.json();
+            
+            if (data.success && data.logs.length > 0) {
+                // Build HTML for logs
+                let html = '';
+                data.logs.forEach(log => {
+                    const punchTypeClass = log.punch_type === 0 
+                        ? 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400'
+                        : 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400';
+                    
+                    html += `
+                        <div class="p-4 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 font-bold text-sm">
+                                ${log.employee_initials}
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">${log.employee_name}</p>
+                                <p class="text-xs text-zinc-500">${log.punch_time} • ${log.device_name}</p>
+                            </div>
+                            <span class="px-2 py-1 text-xs rounded ${punchTypeClass}">
+                                ${log.punch_type_display}
+                            </span>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            } else if (data.logs.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-zinc-500">No activity</div>';
+            }
+        } catch (error) {
+            console.error('Error refreshing activity:', error);
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'p-4 text-center text-red-500 text-sm';
+            errorDiv.textContent = 'Failed to refresh. Please try again.';
+            container.insertBefore(errorDiv, container.firstChild);
+            
+            // Remove error message after 3 seconds
+            setTimeout(() => errorDiv.remove(), 3000);
+        } finally {
+            // Remove spinning animation
+            setTimeout(() => {
+                refreshIcon.classList.remove('animate-spin');
+            }, 500);
+        }
+    }
+    
+    // Manual refresh button click
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        refreshRecentActivity();
+    });
+    
+    // Auto-refresh every 15 seconds
+    function startAutoRefresh() {
+        autoRefreshInterval = setInterval(() => {
+            refreshRecentActivity();
+        }, 15000); // 15 seconds
+    }
+    
+    // Stop auto-refresh when page is hidden
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearInterval(autoRefreshInterval);
+        } else {
+            startAutoRefresh();
+        }
+    });
+    
+    // Start auto-refresh on page load
+    startAutoRefresh();
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+        clearInterval(autoRefreshInterval);
+    });
+</script>
 
 {% endblock %}

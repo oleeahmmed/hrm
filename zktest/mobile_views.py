@@ -14,6 +14,7 @@ from django.db import models
 from django.db.models import Q, Count, Sum, Avg
 from datetime import date, timedelta, datetime
 from decimal import Decimal
+from django.http import JsonResponse
 
 from zktest.models import AttendanceLog, Employee, EmployeeSalary, Attendance, ZKDevice
 
@@ -388,6 +389,47 @@ class EmployeeListView(View):
         
         return render(request, 'zktest/mobile/employees.html', context)
 
+
+
+class RecentActivityAPIView(View):
+    """API endpoint for fetching recent activity logs"""
+    
+    @method_decorator(login_required(login_url='zktest:mobile-login'))
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
+    def get(self, request):
+        # Get recent logs (last 10)
+        recent_logs = AttendanceLog.objects.select_related('device').order_by('-punch_time')[:10]
+        
+        # Get employee data
+        user_ids = [log.user_id for log in recent_logs]
+        employees_dict = {}
+        if user_ids:
+            employees = Employee.objects.filter(user_id__in=user_ids)
+            employees_dict = {emp.user_id: emp for emp in employees}
+        
+        # Build response data
+        logs_data = []
+        for log in recent_logs:
+            employee = employees_dict.get(log.user_id)
+            logs_data.append({
+                'user_id': log.user_id,
+                'employee_name': employee.get_full_name() if employee else f'User {log.user_id}',
+                'employee_initials': f"{employee.first_name[0]}{employee.last_name[0]}" if employee and employee.first_name and employee.last_name else 'U',
+                'punch_time': log.punch_time.strftime('%I:%M %p'),
+                'punch_date': log.punch_time.strftime('%Y-%m-%d'),
+                'device_name': log.device.device_name if log.device and log.device.device_name else (log.device.serial_number if log.device else 'Unknown'),
+                'punch_type': log.punch_type,
+                'punch_type_display': log.get_punch_type_display(),
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'logs': logs_data,
+            'count': len(logs_data),
+            'timestamp': timezone.now().isoformat()
+        })
 
 
 class MobileAttendanceLogReportView(View):
