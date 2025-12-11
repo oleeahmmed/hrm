@@ -252,9 +252,17 @@
                                 <th class="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     {% trans "Absent" %}</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    {% trans "Weekend" %}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    {% trans "Weekend Worked" %}</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     {% trans "Attendance %" %}</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     {% trans "Per Hour Rate" %}</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    {% trans "Actual Work Hrs" %}</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    {% trans "Weekend Hrs" %}</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     {% trans "Total Work Hours" %}</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -284,6 +292,16 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-center text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                        {{ summary.weekend_days }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-center text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                        {{ summary.weekend_work_days }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-center text-sm">
                                     <div class="flex items-center justify-center gap-2">
                                         <span class="text-xs font-medium">{{ summary.attendance_percentage }}%</span>
                                     </div>
@@ -294,9 +312,18 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm font-semibold">
+                                    <span class="text-orange-600 dark:text-orange-400">
+                                        {{ summary.work_hours }}h
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right text-sm font-semibold">
+                                    <span class="text-blue-600 dark:text-blue-400">
+                                        {{ summary.weekend_hours }}h
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right text-sm font-semibold">
                                     <div class="text-green-600 dark:text-green-400">
                                         <div class="font-semibold">{{ summary.total_work_hours }}h</div>
-                                        <div class="text-xs text-muted-foreground">{{ summary.work_hours_formatted }}</div>
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm font-semibold">
@@ -328,14 +355,28 @@
                                 <td class="px-4 py-4 text-center text-sm font-bold">
                                     -
                                 </td>
+                                <td class="px-4 py-4 text-center text-sm font-bold">
+                                    -
+                                </td>
+                                <td class="px-4 py-4 text-center text-sm font-bold">
+                                    -
+                                </td>
                                 <td class="px-4 py-4 text-right text-sm font-bold">
                                     -
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-bold">
-                                    <div class="text-green-600 dark:text-green-400">
-                                        <div class="text-lg font-bold">{{ total_work_hours }}h</div>
-                                        <div class="text-sm text-muted-foreground">{{ total_work_hours_formatted }}</div>
+                                    <div class="text-orange-600 dark:text-orange-400 text-lg font-bold">
+                                        {{ total_work_hours }}h
                                     </div>
+                                </td>
+                                <td class="px-4 py-4 text-right text-sm font-bold">
+                                    -
+                                </td>
+                                <td class="px-4 py-4 text-right text-sm font-bold">
+                                    <div class="text-green-600 dark:text-green-400 text-lg font-bold">
+                                        {{ total_work_hours }}h
+                                    </div>
+                                </td>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-bold">
                                     <span class="text-blue-600 dark:text-blue-400 text-lg">
@@ -397,6 +438,10 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             {% trans "Work Hours" %}</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Weekend Bonus" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {% trans "Total Hours" %}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             {% trans "Amount" %}</th>
                     </tr>
                 </thead>
@@ -421,8 +466,18 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             {% if record.status == 'present' %}
+                            {% if record.is_weekend_work %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                {% trans "Weekend Work" %}
+                            </span>
+                            {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                 {% trans "Present" %}
+                            </span>
+                            {% endif %}
+                            {% elif record.status == 'weekend' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                {% trans "Weekend" %}
                             </span>
                             {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
@@ -481,7 +536,21 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold">
                             {% if record.work_hours > 0 %}
-                            <span class="text-green-600 dark:text-green-400">{{ record.work_hours }}h</span>
+                            <span class="text-orange-600 dark:text-orange-400">{{ record.work_hours }}h</span>
+                            {% else %}
+                            <span class="text-muted-foreground">0h</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                            {% if record.weekend_bonus_hours > 0 %}
+                            <span class="text-blue-600 dark:text-blue-400">+{{ record.weekend_bonus_hours }}h</span>
+                            {% else %}
+                            <span class="text-muted-foreground">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                            {% if record.total_work_hours > 0 %}
+                            <span class="text-green-600 dark:text-green-400">{{ record.total_work_hours }}h</span>
                             {% else %}
                             <span class="text-muted-foreground">0h</span>
                             {% endif %}

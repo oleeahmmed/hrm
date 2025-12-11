@@ -16,6 +16,24 @@ from collections import defaultdict
 from zktest.models import AttendanceLog, Employee, EmployeeSalary
 
 
+def is_employee_weekend(employee, date):
+    """
+    Check if given date is a weekend day for the employee
+    
+    Args:
+        employee: Employee object
+        date: Date to check
+    
+    Returns:
+        bool: True if date is weekend for employee
+    """
+    if employee:
+        return employee.is_weekend(date)
+    # Default: friday, saturday, sunday
+    day_name = date.strftime('%A').lower()
+    return day_name in ['friday', 'saturday', 'sunday']
+
+
 def get_work_day_range(date):
     """
     Get work day range: 6:00 AM to next day 4:00 AM
@@ -126,7 +144,7 @@ def calculate_work_hours_from_punches(punches, break_time_minutes=0):
     }
 
 
-def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate, break_time_minutes=0):
+def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate, break_time_minutes=0, employee=None):
     """
     Generate attendance record from attendance logs for a specific date
     
@@ -136,10 +154,17 @@ def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate,
         attendance_logs: QuerySet of AttendanceLog
         per_hour_rate: Employee's per hour rate
         break_time_minutes: Break time in minutes
+        employee: Employee object (for weekend check and allowance)
     
     Returns:
         dict: Attendance data or None if no valid attendance
     """
+    # Check if this is a weekend day for the employee
+    is_weekend_day = employee and is_employee_weekend(employee, date)
+    
+    # Check if employee has weekend allowance enabled
+    has_weekend_allowance = employee and employee.weekend_allowance
+    
     # Get work day range
     start_datetime, end_datetime = get_work_day_range(date)
     
@@ -164,8 +189,12 @@ def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate,
     # Calculate work hours
     calc_result = calculate_work_hours_from_punches(punches, break_time_minutes)
     
+    # If weekend work and employee has allowance, ADD fixed 15 hours (not replace)
+    weekend_bonus_hours = Decimal('15.00') if (is_weekend_day and has_weekend_allowance and calc_result['work_hours'] > 0) else Decimal('0.00')
+    total_work_hours_for_pay = calc_result['work_hours'] + weekend_bonus_hours
+    
     # Calculate daily amount
-    daily_amount = (calc_result['work_hours'] * per_hour_rate).quantize(Decimal('0.01'))
+    daily_amount = (total_work_hours_for_pay * per_hour_rate).quantize(Decimal('0.01'))
     
     # Determine status
     status = 'present' if calc_result['work_hours'] > 0 else 'absent'
@@ -174,9 +203,12 @@ def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate,
         'user_id': user_id,
         'date': date,
         'status': status,
+        'is_weekend_work': is_weekend_day and has_weekend_allowance and calc_result['work_hours'] > 0,  # Mark if worked on weekend
+        'weekend_bonus_hours': weekend_bonus_hours,  # 15 hours bonus if worked on weekend
         'check_in_time': calc_result['first_punch'],
         'check_out_time': calc_result['last_punch'],
-        'work_hours': calc_result['work_hours'],
+        'work_hours': calc_result['work_hours'],  # Actual work hours from punches
+        'total_work_hours': total_work_hours_for_pay,  # Actual + weekend bonus
         'total_punches': calc_result['total_punches'],
         'paired_punches': calc_result['paired_punches'],
         'unpaired_punches': calc_result['unpaired_punches'],
@@ -189,6 +221,7 @@ def generate_attendance_from_logs(user_id, date, attendance_logs, per_hour_rate,
         'unpaired_punch_times': calc_result['unpaired_punch_times'],
         'break_periods': calc_result['break_periods'],
     }
+
 
 
 class AttendanceLogReportView(View):
@@ -346,7 +379,8 @@ class DailyAttendanceReportView(View):
                             date=current_date,
                             attendance_logs=emp_logs,
                             per_hour_rate=per_hour_rate,
-                            break_time_minutes=break_time
+                            break_time_minutes=break_time,
+                            employee=emp  # Pass employee for weekend check
                         )
                         
                         # Always add record, even if absent
@@ -354,6 +388,13 @@ class DailyAttendanceReportView(View):
                             # Add employee object and punch logs for display
                             attendance_data['employee'] = emp
                             attendance_data['punch_logs'] = list(day_logs)
+                            
+                            # Check if it's a weekend day with no work (unpaid weekend)
+                            is_weekend = is_employee_weekend(emp, current_date)
+                            if is_weekend and attendance_data['status'] == 'absent':
+                                # No work on weekend day = "Weekend" status
+                                attendance_data['status'] = 'weekend'
+                            
                             attendance_records.append(attendance_data)
                             
                             # Update statistics
@@ -364,13 +405,19 @@ class DailyAttendanceReportView(View):
                             else:
                                 total_absent += 1
                         else:
-                            # No punches at all - truly absent
-                            total_absent += 1
+                            # No punches at all - check if it's weekend
+                            is_weekend = is_employee_weekend(emp, current_date)
+                            status = 'weekend' if is_weekend else 'absent'
+                            
+                            if status == 'absent':
+                                total_absent += 1
+                            
                             attendance_records.append({
                                 'employee': emp,
                                 'user_id': emp.user_id,
                                 'date': current_date,
-                                'status': 'absent',
+                                'status': status,
+                                'is_weekend_work': False,
                                 'check_in_time': None,
                                 'check_out_time': None,
                                 'work_hours': Decimal('0.00'),
@@ -404,22 +451,53 @@ class DailyAttendanceReportView(View):
                     'total_days': 0,
                     'present_days': 0,
                     'absent_days': 0,
-                    'total_work_hours': Decimal('0.00'),
+                    'weekend_days': 0,  # Count of unpaid weekend days (no punch)
+                    'weekend_work_days': 0,  # Count of weekend days with work
+                    'weekend_hours': Decimal('0.00'),  # Total weekend bonus hours
+                    'work_hours': Decimal('0.00'),  # Actual work hours from punches
+                    'total_work_hours': Decimal('0.00'),  # work_hours + weekend_hours
                     'total_amount': Decimal('0.00'),
                 }
             
             employee_summary[emp_id]['total_days'] += 1
+            
             if record['status'] == 'present':
                 employee_summary[emp_id]['present_days'] += 1
-                employee_summary[emp_id]['total_work_hours'] += record['work_hours']
+                # Add actual work hours and weekend bonus if applicable
+                employee_summary[emp_id]['work_hours'] += record['work_hours']
+                employee_summary[emp_id]['total_work_hours'] += record['total_work_hours']
                 employee_summary[emp_id]['total_amount'] += record['daily_amount']
-            else:
+                # Track if they worked on weekend
+                if record.get('is_weekend_work'):
+                    employee_summary[emp_id]['weekend_work_days'] += 1
+                    employee_summary[emp_id]['weekend_hours'] += record.get('weekend_bonus_hours', Decimal('0.00'))
+            elif record['status'] == 'weekend':
+                employee_summary[emp_id]['weekend_days'] += 1
+                # Weekend day without punch = 15 hours bonus
+                employee_summary[emp_id]['weekend_hours'] += Decimal('15.00')
+                employee_summary[emp_id]['total_work_hours'] += Decimal('15.00')
+                employee_summary[emp_id]['total_amount'] += (Decimal('15.00') * record['per_hour_rate']).quantize(Decimal('0.01'))
+            else:  # absent
                 employee_summary[emp_id]['absent_days'] += 1
+        
+        # IMPORTANT: If employee has ANY absent day, remove ALL weekend benefits
+        # (They don't get any weekend allowance if they were absent even once)
+        for emp_id, summary in employee_summary.items():
+            if summary['absent_days'] > 0:
+                # Remove all weekend benefits
+                summary['weekend_days'] = 0
+                summary['weekend_work_days'] = 0
+                summary['weekend_hours'] = Decimal('0.00')
+                # Recalculate total work hours and amount (only actual work, no weekend bonus)
+                summary['total_work_hours'] = summary['work_hours']
+                summary['total_amount'] = (summary['work_hours'] * summary['per_hour_rate']).quantize(Decimal('0.01'))
         
         # Calculate attendance percentage and format hours for each employee
         for emp_id, summary in employee_summary.items():
-            if summary['total_days'] > 0:
-                summary['attendance_percentage'] = round((summary['present_days'] / summary['total_days']) * 100, 1)
+            # Calculate based on actual working days (excluding weekends)
+            working_days = summary['total_days'] - summary['weekend_days']
+            if working_days > 0:
+                summary['attendance_percentage'] = round((summary['present_days'] / working_days) * 100, 1)
             else:
                 summary['attendance_percentage'] = 0
             
@@ -437,7 +515,6 @@ class DailyAttendanceReportView(View):
         total_hours_part = total_minutes // 60
         total_minutes_part = total_minutes % 60
         total_work_hours_formatted = f"{total_hours_part}h {total_minutes_part}m"
-        
         context = {
             **admin.site.each_context(request),
             'title': 'Daily Attendance Report',

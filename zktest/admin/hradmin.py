@@ -171,7 +171,7 @@ class ShiftAdmin(ModelAdmin):
 class EmployeeAdmin(ModelAdmin):
     list_display = (
         'employee_id', 'user_id', 'get_full_name', 'display_portal_user',
-        'department_code', 'designation_code', 'shift_code',
+        'department_code', 'designation_code', 'display_weekend_allowance',
         'display_device_enrollment', 'display_employment_status', 'is_active'
     )
     list_filter = (
@@ -206,6 +206,7 @@ class EmployeeAdmin(ModelAdmin):
         ('Employment Details', {
             'fields': (
                 ('joining_date', 'employment_status'),
+                ('weekend_allowance', 'weekend_days'),
                 ('is_active',),
             ),
             'classes': ['tab'],
@@ -233,6 +234,16 @@ class EmployeeAdmin(ModelAdmin):
         if count > 0:
             return format_html('<span style="color: green;">✓ {} device(s)</span>', count)
         return format_html('<span style="color: orange;">⚠ Not enrolled</span>')
+    
+    @display(description='Weekend', label={
+        True: 'success',
+        False: 'danger',
+    })
+    def display_weekend_allowance(self, obj):
+        """Show if employee has weekend allowance"""
+        if obj.weekend_allowance:
+            return format_html('<span style="color: green;">✓ 15 hrs</span>')
+        return format_html('<span style="color: red;">✗ Disabled</span>')
     
     @display(description='Status', label={
         'active': 'success',

@@ -116,6 +116,19 @@ class Employee(models.Model):
         default='active'
     )
     
+    # Weekend Allowance Setting
+    weekend_allowance = models.BooleanField(
+        _("Weekend Allowance (15 hrs/day)"),
+        default=True,
+        help_text=_("If enabled, employee gets 15 hours fixed salary on weekend work. If ANY absent day in period, weekend benefits are removed.")
+    )
+    weekend_days = models.CharField(
+        _("Weekend Days"),
+        max_length=100,
+        default="friday",
+        help_text=_("Comma-separated day names (e.g., 'friday' or 'saturday,sunday')")
+    )
+    
     is_active = models.BooleanField(_("Active"), default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -188,6 +201,18 @@ class Employee(models.Model):
         """Get all devices where this employee is enrolled"""
         device_users = self.get_device_users()
         return [du.device for du in device_users]
+    
+    def get_weekend_days_list(self):
+        """Get list of weekend days for this employee"""
+        if self.weekend_days:
+            days = self.weekend_days.split(',')
+            return [d.strip().lower() for d in days]
+        return ['saturday', 'sunday']  # Default
+    
+    def is_weekend(self, date):
+        """Check if given date is a weekend day for this employee"""
+        day_name = date.strftime('%A').lower()
+        return day_name in self.get_weekend_days_list()
 
 
 # ==================== EMPLOYEE PERSONAL INFO MODEL ====================
