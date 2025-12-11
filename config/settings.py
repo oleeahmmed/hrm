@@ -217,47 +217,30 @@ UNFOLD = {
                     },
                 ],
             },
-            
-            # ==================== CORE MANAGEMENT ====================
+                        # ==================== REPORTS ====================
             {
-                "title": _("Core Management"),
+                "title": _("Reports"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("User Profiles"),
-                        "icon": "account_circle",
-                        "link": admin_changelist("core", "userprofile"),
-                        "permission": lambda request: request.user.has_perm("core.view_userprofile"),
+                        "title": _("Attendance Log Report"),
+                        "icon": "assessment",
+                        "link": lambda request: reverse_lazy("zktest:attendance-log-report"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
                     },
                     {
-                        "title": _("Companies"),
-                        "icon": "business",
-                        "link": admin_changelist("core", "company"),
-                        "permission": lambda request: request.user.has_perm("core.view_company"),
-                    },
-                    {
-                        "title": _("Projects"),
-                        "icon": "folder_special",
-                        "link": admin_changelist("core", "project"),
-                        "permission": lambda request: request.user.has_perm("core.view_project"),
-                    },
-                    {
-                        "title": _("Tasks"),
-                        "icon": "task",
-                        "link": admin_changelist("core", "task"),
-                        "permission": lambda request: request.user.has_perm("core.view_task"),
-                    },
-                    {
-                        "title": _("Task Comments"),
-                        "icon": "comment",
-                        "link": admin_changelist("core", "taskcomment"),
-                        "permission": lambda request: request.user.has_perm("core.view_taskcomment"),
+                        "title": _("Daily Attendance Report"),
+                        "icon": "summarize",
+                        "link": lambda request: reverse_lazy("zktest:daily-attendance-report"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
                     },
                 ],
             },
             
-            # ==================== HR MANAGEMENT ====================
+
+
+                        # ==================== HR MANAGEMENT ====================
             {
                 "title": _("HR Management"),
                 "separator": True,
@@ -289,138 +272,199 @@ UNFOLD = {
                     },
                 ],
             },
+
+                        # ==================== ATTENDANCE LOGS ====================
+            {
+                "title": _("Attendance Logs"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Attendance Logs"),
+                        "icon": "schedule",
+                        "link": admin_changelist("zktest", "attendancelog"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
+                    },
+                    {
+                        "title": _("Operation Logs"),
+                        "icon": "history",
+                        "link": admin_changelist("zktest", "operationlog"),
+                        "permission": lambda request: request.user.has_perm("zktest.view_operationlog"),
+                    },
+                ],
+            },
+            # ==================== CORE MANAGEMENT ====================
+            # {
+            #     "title": _("Core Management"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("User Profiles"),
+            #             "icon": "account_circle",
+            #             "link": admin_changelist("core", "userprofile"),
+            #             "permission": lambda request: request.user.has_perm("core.view_userprofile"),
+            #         },
+            #         {
+            #             "title": _("Companies"),
+            #             "icon": "business",
+            #             "link": admin_changelist("core", "company"),
+            #             "permission": lambda request: request.user.has_perm("core.view_company"),
+            #         },
+            #         {
+            #             "title": _("Projects"),
+            #             "icon": "folder_special",
+            #             "link": admin_changelist("core", "project"),
+            #             "permission": lambda request: request.user.has_perm("core.view_project"),
+            #         },
+            #         {
+            #             "title": _("Tasks"),
+            #             "icon": "task",
+            #             "link": admin_changelist("core", "task"),
+            #             "permission": lambda request: request.user.has_perm("core.view_task"),
+            #         },
+            #         {
+            #             "title": _("Task Comments"),
+            #             "icon": "comment",
+            #             "link": admin_changelist("core", "taskcomment"),
+            #             "permission": lambda request: request.user.has_perm("core.view_taskcomment"),
+            #         },
+            #     ],
+            # },
+            
+
             
             # ==================== ATTENDANCE & ROSTER ====================
-            {
-                "title": _("Attendance & Roster"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Attendance Records"),
-                        "icon": "event_available",
-                        "link": admin_changelist("zktest", "attendance"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_attendance"),
-                    },
-                    {
-                        "title": _("Overtime"),
-                        "icon": "schedule",
-                        "link": admin_changelist("zktest", "overtime"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_overtime"),
-                    },
-                    {
-                        "title": _("Rosters"),
-                        "icon": "calendar_today",
-                        "link": admin_changelist("zktest", "roster"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_roster"),
-                    },
-                    {
-                        "title": _("Roster Assignments"),
-                        "icon": "assignment",
-                        "link": admin_changelist("zktest", "rosterassignment"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_rosterassignment"),
-                    },
-                    {
-                        "title": _("Roster Days"),
-                        "icon": "date_range",
-                        "link": admin_changelist("zktest", "rosterday"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_rosterday"),
-                    },
-                ],
-            },
+            # {
+            #     "title": _("Attendance & Roster"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("Attendance Records"),
+            #             "icon": "event_available",
+            #             "link": admin_changelist("zktest", "attendance"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_attendance"),
+            #         },
+            #         {
+            #             "title": _("Overtime"),
+            #             "icon": "schedule",
+            #             "link": admin_changelist("zktest", "overtime"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_overtime"),
+            #         },
+            #         {
+            #             "title": _("Rosters"),
+            #             "icon": "calendar_today",
+            #             "link": admin_changelist("zktest", "roster"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_roster"),
+            #         },
+            #         {
+            #             "title": _("Roster Assignments"),
+            #             "icon": "assignment",
+            #             "link": admin_changelist("zktest", "rosterassignment"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_rosterassignment"),
+            #         },
+            #         {
+            #             "title": _("Roster Days"),
+            #             "icon": "date_range",
+            #             "link": admin_changelist("zktest", "rosterday"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_rosterday"),
+            #         },
+            #     ],
+            # },
             
             # ==================== LEAVE MANAGEMENT ====================
-            {
-                "title": _("Leave Management"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Leave Applications"),
-                        "icon": "event_busy",
-                        "link": admin_changelist("zktest", "leaveapplication"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_leaveapplication"),
-                    },
-                    {
-                        "title": _("Leave Balances"),
-                        "icon": "account_balance_wallet",
-                        "link": admin_changelist("zktest", "leavebalance"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_leavebalance"),
-                    },
-                    {
-                        "title": _("Leave Types"),
-                        "icon": "category",
-                        "link": admin_changelist("zktest", "leavetype"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_leavetype"),
-                    },
-                    {
-                        "title": _("Holidays"),
-                        "icon": "celebration",
-                        "link": admin_changelist("zktest", "holiday"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_holiday"),
-                    },
-                ],
-            },
+            # {
+            #     "title": _("Leave Management"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("Leave Applications"),
+            #             "icon": "event_busy",
+            #             "link": admin_changelist("zktest", "leaveapplication"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_leaveapplication"),
+            #         },
+            #         {
+            #             "title": _("Leave Balances"),
+            #             "icon": "account_balance_wallet",
+            #             "link": admin_changelist("zktest", "leavebalance"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_leavebalance"),
+            #         },
+            #         {
+            #             "title": _("Leave Types"),
+            #             "icon": "category",
+            #             "link": admin_changelist("zktest", "leavetype"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_leavetype"),
+            #         },
+            #         {
+            #             "title": _("Holidays"),
+            #             "icon": "celebration",
+            #             "link": admin_changelist("zktest", "holiday"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_holiday"),
+            #         },
+            #     ],
+            # },
             
             # ==================== EMPLOYEE DETAILS ====================
-            {
-                "title": _("Employee Details"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Personal Info"),
-                        "icon": "person_outline",
-                        "link": admin_changelist("zktest", "employeepersonalinfo"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_employeepersonalinfo"),
-                    },
-                    {
-                        "title": _("Education"),
-                        "icon": "school",
-                        "link": admin_changelist("zktest", "employeeeducation"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_employeeeducation"),
-                    },
-                    {
-                        "title": _("Salary"),
-                        "icon": "payments",
-                        "link": admin_changelist("zktest", "employeesalary"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_employeesalary"),
-                    },
-                    {
-                        "title": _("Skills"),
-                        "icon": "psychology",
-                        "link": admin_changelist("zktest", "employeeskill"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_employeeskill"),
-                    },
-                ],
-            },
+            # {
+            #     "title": _("Employee Details"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("Personal Info"),
+            #             "icon": "person_outline",
+            #             "link": admin_changelist("zktest", "employeepersonalinfo"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_employeepersonalinfo"),
+            #         },
+            #         {
+            #             "title": _("Education"),
+            #             "icon": "school",
+            #             "link": admin_changelist("zktest", "employeeeducation"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_employeeeducation"),
+            #         },
+            #         {
+            #             "title": _("Salary"),
+            #             "icon": "payments",
+            #             "link": admin_changelist("zktest", "employeesalary"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_employeesalary"),
+            #         },
+            #         {
+            #             "title": _("Skills"),
+            #             "icon": "psychology",
+            #             "link": admin_changelist("zktest", "employeeskill"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_employeeskill"),
+            #         },
+            #     ],
+            # },
             
             # ==================== LOCATION & NOTICES ====================
-            {
-                "title": _("Location & Notices"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Locations"),
-                        "icon": "location_on",
-                        "link": admin_changelist("zktest", "location"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_location"),
-                    },
-                    {
-                        "title": _("User Locations"),
-                        "icon": "my_location",
-                        "link": admin_changelist("zktest", "userlocation"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_userlocation"),
-                    },
-                    {
-                        "title": _("Notices"),
-                        "icon": "notifications",
-                        "link": admin_changelist("zktest", "notice"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_notice"),
-                    },
-                ],
-            },
+            # {
+            #     "title": _("Location & Notices"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("Locations"),
+            #             "icon": "location_on",
+            #             "link": admin_changelist("zktest", "location"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_location"),
+            #         },
+            #         {
+            #             "title": _("User Locations"),
+            #             "icon": "my_location",
+            #             "link": admin_changelist("zktest", "userlocation"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_userlocation"),
+            #         },
+            #         {
+            #             "title": _("Notices"),
+            #             "icon": "notifications",
+            #             "link": admin_changelist("zktest", "notice"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_notice"),
+            #         },
+            #     ],
+            # },
             
             # ==================== ZK DEVICE MANAGEMENT ====================
             {
@@ -457,70 +501,29 @@ UNFOLD = {
                 ],
             },
             
-            # ==================== ATTENDANCE LOGS ====================
-            {
-                "title": _("Attendance Logs"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Attendance Logs"),
-                        "icon": "schedule",
-                        "link": admin_changelist("zktest", "attendancelog"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
-                    },
-                    {
-                        "title": _("Operation Logs"),
-                        "icon": "history",
-                        "link": admin_changelist("zktest", "operationlog"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_operationlog"),
-                    },
-                ],
-            },
+
             
             # ==================== BIOMETRIC DATA ====================
-            {
-                "title": _("Biometric Data"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Fingerprint Templates"),
-                        "icon": "fingerprint",
-                        "link": admin_changelist("zktest", "fingerprinttemplate"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_fingerprinttemplate"),
-                    },
-                    {
-                        "title": _("Face Templates"),
-                        "icon": "face",
-                        "link": admin_changelist("zktest", "facetemplate"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_facetemplate"),
-                    },
-                ],
-            },
-            
-            # ==================== REPORTS ====================
-            {
-                "title": _("Reports"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {
-                        "title": _("Attendance Log Report"),
-                        "icon": "assessment",
-                        "link": lambda request: reverse_lazy("zktest:attendance-log-report"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
-                    },
-                    {
-                        "title": _("Daily Attendance Report"),
-                        "icon": "summarize",
-                        "link": lambda request: reverse_lazy("zktest:daily-attendance-report"),
-                        "permission": lambda request: request.user.has_perm("zktest.view_attendancelog"),
-                    },
-                ],
-            },
-            
-            # ==================== AUTHENTICATION ====================
+            # {
+            #     "title": _("Biometric Data"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {
+            #             "title": _("Fingerprint Templates"),
+            #             "icon": "fingerprint",
+            #             "link": admin_changelist("zktest", "fingerprinttemplate"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_fingerprinttemplate"),
+            #         },
+            #         {
+            #             "title": _("Face Templates"),
+            #             "icon": "face",
+            #             "link": admin_changelist("zktest", "facetemplate"),
+            #             "permission": lambda request: request.user.has_perm("zktest.view_facetemplate"),
+            #         },
+            #     ],
+            # },
+                        # ==================== AUTHENTICATION ====================
             {
                 "title": _("Authentication & Authorization"),
                 "separator": True,
@@ -538,6 +541,7 @@ UNFOLD = {
                     },
                 ],
             },
+
         ],
     },
 }

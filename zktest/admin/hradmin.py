@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils import timezone
+from django import forms
 
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display, action
@@ -165,10 +166,52 @@ class ShiftAdmin(ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 
+# ==================== EMPLOYEE FORM ====================
+
+class EmployeeForm(forms.ModelForm):
+    """Custom form for Employee with weekend days as checkboxes"""
+    
+    WEEKEND_CHOICES = [
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ]
+    
+    weekend_days = forms.MultipleChoiceField(
+        choices=WEEKEND_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        help_text="Select days that are weekend for this employee"
+    )
+    
+    class Meta:
+        model = Employee
+        fields = '__all__'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Split comma-separated string into list for initial value
+        if self.instance and self.instance.weekend_days:
+            weekend_list = [d.strip().lower() for d in self.instance.weekend_days.split(',')]
+            self.fields['weekend_days'].initial = weekend_list
+    
+    def clean_weekend_days(self):
+        """Convert selected checkboxes back to comma-separated string"""
+        days = self.cleaned_data.get('weekend_days', [])
+        if days:
+            return ','.join(days)
+        return 'friday'  # Default
+
+
 # ==================== EMPLOYEE ADMIN ====================
 
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
+    form = EmployeeForm
     list_display = (
         'employee_id', 'user_id', 'get_full_name', 'display_portal_user',
         'department_code', 'designation_code', 'display_weekend_allowance',
@@ -193,6 +236,8 @@ class EmployeeAdmin(ModelAdmin):
                 ('first_name', 'last_name'),
                 ('email', 'phone_number'),
                 ('portal_user',),
+                ('weekend_allowance', 'is_active'),
+                ('weekend_days',),
             ),
             'classes': ['tab'],
         }),
@@ -206,8 +251,6 @@ class EmployeeAdmin(ModelAdmin):
         ('Employment Details', {
             'fields': (
                 ('joining_date', 'employment_status'),
-                ('weekend_allowance', 'weekend_days'),
-                ('is_active',),
             ),
             'classes': ['tab'],
         }),
