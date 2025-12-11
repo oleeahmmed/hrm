@@ -311,6 +311,7 @@ class ZKDeviceAdmin(ModelAdmin):
         self.message_user(request, f"{queryset.count()} devices marked as offline")
 
 
+
 # ==================== ATTENDANCE LOG ADMIN ====================
 
 @admin.register(AttendanceLog)
@@ -321,12 +322,10 @@ class AttendanceLogAdmin(ModelAdmin):
         'display_sync_status', 'created_at'
     )
     list_filter = (
-        ('device', RelatedDropdownFilter),
-        ('punch_type', ChoicesDropdownFilter),
-        'is_synced',
+        'user_id',
         ('punch_time', RangeDateTimeFilter),
     )
-    search_fields = ('user_id', 'device__serial_number', 'device__device_name')
+    search_fields = ('user_id',)
     ordering = ('-punch_time',)
     readonly_fields = ('raw_data', 'created_at', 'synced_at')
     date_hierarchy = 'punch_time'

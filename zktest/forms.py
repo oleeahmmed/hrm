@@ -1,6 +1,6 @@
-# ==================== zktest/forms.py ====================
 """
 ZKTest Forms - Report Filter Forms
+Updated with shadcn-style input classes
 """
 
 from django import forms
@@ -15,7 +15,7 @@ class AttendanceLogReportForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={
             'type': 'date',
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='From Date',
         initial=lambda: date.today() - timedelta(days=7)
@@ -25,7 +25,7 @@ class AttendanceLogReportForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={
             'type': 'date',
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='To Date',
         initial=date.today
@@ -35,7 +35,7 @@ class AttendanceLogReportForm(forms.Form):
         queryset=Employee.objects.filter(is_active=True).order_by('employee_id'),
         required=False,
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='Employee',
         empty_label='All Employees'
@@ -44,7 +44,7 @@ class AttendanceLogReportForm(forms.Form):
     device_sn = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'input',
             'placeholder': 'Device Serial Number',
         }),
         label='Device SN'
@@ -58,7 +58,7 @@ class AttendanceLogReportForm(forms.Form):
             ('false', 'Unprocessed'),
         ],
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='Processing Status',
         initial=''
@@ -72,7 +72,7 @@ class DailyAttendanceReportForm(forms.Form):
         required=True,
         widget=forms.DateInput(attrs={
             'type': 'date',
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='From Date',
         initial=lambda: date.today() - timedelta(days=7)
@@ -82,7 +82,7 @@ class DailyAttendanceReportForm(forms.Form):
         required=True,
         widget=forms.DateInput(attrs={
             'type': 'date',
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='To Date',
         initial=date.today
@@ -92,7 +92,7 @@ class DailyAttendanceReportForm(forms.Form):
         queryset=Employee.objects.filter(is_active=True).order_by('employee_id'),
         required=False,
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'input',
         }),
         label='Employee',
         empty_label='All Employees'
@@ -102,7 +102,7 @@ class DailyAttendanceReportForm(forms.Form):
         required=False,
         initial=0,
         widget=forms.NumberInput(attrs={
-            'class': 'form-control',
+            'class': 'input',
             'min': '0',
             'max': '480',
             'step': '15',

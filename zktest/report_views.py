@@ -416,15 +416,27 @@ class DailyAttendanceReportView(View):
             else:
                 employee_summary[emp_id]['absent_days'] += 1
         
-        # Calculate attendance percentage for each employee
+        # Calculate attendance percentage and format hours for each employee
         for emp_id, summary in employee_summary.items():
             if summary['total_days'] > 0:
                 summary['attendance_percentage'] = round((summary['present_days'] / summary['total_days']) * 100, 1)
             else:
                 summary['attendance_percentage'] = 0
+            
+            # Convert total work hours to hours:minutes format
+            total_minutes = int(summary['total_work_hours'] * 60)
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            summary['work_hours_formatted'] = f"{hours}h {minutes}m"
         
         # Convert to list and sort by employee ID
         employee_summary_list = sorted(employee_summary.values(), key=lambda x: x['employee'].employee_id)
+        
+        # Format total work hours for grand total
+        total_minutes = int(total_work_hours * 60)
+        total_hours_part = total_minutes // 60
+        total_minutes_part = total_minutes % 60
+        total_work_hours_formatted = f"{total_hours_part}h {total_minutes_part}m"
         
         context = {
             **admin.site.each_context(request),
@@ -437,6 +449,7 @@ class DailyAttendanceReportView(View):
             'total_present': total_present,
             'total_absent': total_absent,
             'total_work_hours': round(total_work_hours, 2),
+            'total_work_hours_formatted': total_work_hours_formatted,
             'total_amount': round(total_amount, 2),
         }
         

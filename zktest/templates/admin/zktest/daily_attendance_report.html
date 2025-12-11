@@ -23,63 +23,86 @@
             <h1 class="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
                 {% trans "Daily Attendance Report" %}
             </h1>
-            <p class="mt-2 text-sm text-muted-foreground">{% trans "Work Day: 6:00 AM - 4:00 AM (Next Day) | Default Break: 0 Min | Unpaired Punch = 30 Min Penalty" %}</p>
         </div>
-        <button onclick="printReport()" type="button"
-            class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Print' %}">
-            <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-            </svg>
-            <span class="text-white text-sm font-medium">{% trans "Print" %}</span>
-        </button>
+        {% if attendance_records %}
+        <div class="flex gap-2">
+            <button onclick="printSummary()" type="button"
+                class="addlink bg-green-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Print Summary' %}">
+                <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                </svg>
+                <span class="text-white text-sm font-medium">{% trans "Print Summary" %}</span>
+            </button>
+            <button onclick="printReport()" type="button"
+                class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Print Details' %}">
+                <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                </svg>
+                <span class="text-white text-sm font-medium">{% trans "Print Details" %}</span>
+            </button>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Filter Form -->
-    <div class="rounded-xl border bg-card text-card-foreground shadow-md hover:shadow-lg transition-shadow">
+    <div class="rounded-xl border bg-card text-card-foreground shadow-lg">
         <div class="p-6 bg-gradient-to-br from-primary/5 to-transparent">
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-foreground mb-2">{% trans "Generate Attendance Report" %}</h3>
+                <p class="text-sm text-muted-foreground">{% trans "Select date range and filters to generate attendance report" %}</p>
+            </div>
             <form method="GET" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="space-y-2">
-                        <label for="id_from_date" class="text-sm font-medium leading-none">{% trans "From Date" %} *</label>
-                        {{ form.from_date }}
+                        <label for="id_from_date" class="text-sm font-medium leading-none text-foreground">{% trans "From Date" %} <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            {{ form.from_date }}
+                        </div>
                     </div>
                     
                     <div class="space-y-2">
-                        <label for="id_to_date" class="text-sm font-medium leading-none">{% trans "To Date" %} *</label>
-                        {{ form.to_date }}
+                        <label for="id_to_date" class="text-sm font-medium leading-none text-foreground">{% trans "To Date" %} <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            {{ form.to_date }}
+                        </div>
                     </div>
                     
                     <div class="space-y-2">
-                        <label for="id_employee" class="text-sm font-medium leading-none">{% trans "Employee" %}</label>
-                        {{ form.employee }}
+                        <label for="id_employee" class="text-sm font-medium leading-none text-foreground">{% trans "Employee" %}</label>
+                        <div class="relative">
+                            {{ form.employee }}
+                        </div>
                     </div>
 
                     <div class="space-y-2">
-                        <label for="id_break_time_minutes" class="text-sm font-medium leading-none">{% trans "Break Time (min)" %}</label>
-                        {{ form.break_time_minutes }}
+                        <label for="id_break_time_minutes" class="text-sm font-medium leading-none text-foreground">{% trans "Break Time (min)" %}</label>
+                        <div class="relative">
+                            {{ form.break_time_minutes }}
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2 pt-2">
-                    <button type="submit" class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Generate Report' %}">
-                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="flex items-center gap-3 pt-4 border-t border-border">
+                    <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
-                        <span class="text-white text-sm font-medium">{% trans "Generate Report" %}</span>
+                        <span>{% trans "Generate Report" %}</span>
                     </button>
-                    <a href="{% url 'zktest:daily-attendance-report' %}" class="addlink bg-primary-600 flex items-center h-9 justify-center -my-1 rounded-full px-4 gap-2" title="{% trans 'Reset' %}">
-                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <a href="{% url 'zktest:daily-attendance-report' %}" class="inline-flex items-center gap-2 px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        <span class="text-white text-sm font-medium">{% trans "Reset" %}</span>
+                        <span>{% trans "Reset" %}</span>
                     </a>
                 </div>
             </form>
         </div>
     </div>
 
+    {% if attendance_records %}
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="group rounded-xl border bg-gradient-to-br from-card to-card/50 text-card-foreground shadow-md hover:shadow-xl transition-all hover:scale-105 p-6">
             <div class="flex items-center justify-between">
                 <div>
@@ -144,22 +167,38 @@
         </div>
     </div>
 
-    <!-- Additional Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="rounded-xl border bg-card text-card-foreground shadow-md hover:shadow-lg transition-all p-5">
-            <p class="text-sm font-medium text-muted-foreground mb-1">{% trans "Total Work Hours" %}</p>
-            <p class="text-2xl font-bold">{{ total_work_hours }}h</p>
-        </div>
-        
-        <div class="rounded-xl border bg-gradient-to-br from-purple-50 to-card dark:from-purple-950/20 dark:to-card text-card-foreground shadow-md hover:shadow-lg transition-all p-5">
-            <p class="text-sm font-medium text-muted-foreground mb-2">{% trans "Smart Pairing Rules" %}</p>
-            <div class="space-y-1 text-xs text-muted-foreground">
-                <p>✓ Consecutive punches paired (IN-OUT)</p>
-                <p>✓ Unpaired punch = 30 min penalty</p>
-                <p>✓ Work Hours = Paired Time - Break Time - Penalty</p>
+    <!-- Smart Pairing Rules -->
+    <div class="rounded-xl border bg-gradient-to-br from-purple-50 to-card dark:from-purple-950/20 dark:to-card text-card-foreground shadow-md p-6">
+        <div class="flex items-start gap-4">
+            <div class="p-3 bg-gradient-to-br from-purple-200 to-purple-100 dark:from-purple-900/50 dark:to-purple-900/30 rounded-xl">
+                <svg class="w-7 h-7 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <h3 class="text-lg font-semibold text-foreground mb-3">{% trans "Smart Pairing Rules & Work Day Settings" %}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-medium text-foreground">{% trans "Work Day Schedule" %}</h4>
+                        <div class="space-y-1 text-sm text-muted-foreground">
+                            <p>🕕 Work Day: 6:00 AM - 4:00 AM (Next Day)</p>
+                            <p>⏰ Default Break: 0 Minutes</p>
+                            <p>⚠️ Unpaired Punch = 30 Min Penalty</p>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-medium text-foreground">{% trans "Calculation Rules" %}</h4>
+                        <div class="space-y-1 text-sm text-muted-foreground">
+                            <p>✓ Consecutive punches paired (IN-OUT)</p>
+                            <p>✓ Work Hours = Paired Time - Break Time - Penalty</p>
+                            <p>✓ Total Work Hours: {{ total_work_hours_formatted }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Tabs Navigation -->
     <div class="rounded-xl border bg-card text-card-foreground shadow-md overflow-hidden">
@@ -255,9 +294,10 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm font-semibold">
-                                    <span class="text-green-600 dark:text-green-400">
-                                        {{ summary.total_work_hours }}h
-                                    </span>
+                                    <div class="text-green-600 dark:text-green-400">
+                                        <div class="font-semibold">{{ summary.total_work_hours }}h</div>
+                                        <div class="text-xs text-muted-foreground">{{ summary.work_hours_formatted }}</div>
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm font-semibold">
                                     <span class="text-blue-600 dark:text-blue-400">
@@ -292,9 +332,10 @@
                                     -
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-bold">
-                                    <span class="text-green-600 dark:text-green-400 text-lg">
-                                        {{ total_work_hours }}h
-                                    </span>
+                                    <div class="text-green-600 dark:text-green-400">
+                                        <div class="text-lg font-bold">{{ total_work_hours }}h</div>
+                                        <div class="text-sm text-muted-foreground">{{ total_work_hours_formatted }}</div>
+                                    </div>
                                 </td>
                                 <td class="px-4 py-4 text-right text-sm font-bold">
                                     <span class="text-blue-600 dark:text-blue-400 text-lg">
